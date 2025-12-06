@@ -65,6 +65,70 @@ async function verifyAdmin(authHeader: string | null) {
   return { user, error: null };
 }
 
+// ============================================
+// GEOGRAPHIC DISTANCE HELPERS
+// ============================================
+
+// Haversine formula to calculate distance between two lat/lng points in miles
+function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 3959; // Earth's radius in miles
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = 
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * 
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function toRad(degrees: number): number {
+  return degrees * (Math.PI / 180);
+}
+
+// In-memory cache for zip code coordinates (to avoid repeated API calls)
+const zipCodeCache: Map<string, { lat: number; lng: number } | null> = new Map();
+
+// Simple zip code to lat/lng lookup (using a basic US zip code database)
+// In production, this would use a proper geocoding API or database
+async function getZipCodeCoordinates(zipCode: string): Promise<{ lat: number; lng: number } | null> {
+  // Check cache first
+  if (zipCodeCache.has(zipCode)) {
+    return zipCodeCache.get(zipCode)!;
+  }
+  
+  try {
+    // Use a free geocoding service (Zippopotam.us)
+    const response = await fetch(`https://api.zippopotam.us/us/${zipCode}`);
+    if (!response.ok) {
+      console.log(`Failed to geocode zip ${zipCode}: ${response.status}`);
+      zipCodeCache.set(zipCode, null);
+      return null;
+    }
+    const data = await response.json();
+    if (data.places && data.places.length > 0) {
+      const coords = {
+        lat: parseFloat(data.places[0].latitude),
+        lng: parseFloat(data.places[0].longitude)
+      };
+      zipCodeCache.set(zipCode, coords);
+      return coords;
+    }
+    zipCodeCache.set(zipCode, null);
+    return null;
+  } catch (error) {
+    console.error(`Error geocoding zip ${zipCode}:`, error);
+    zipCodeCache.set(zipCode, null);
+    return null;
+  }
+}
+
+// Extract zip code from location string (e.g., "Los Angeles, CA 90001" -> "90001")
+function extractZipCode(location: string): string | null {
+  const zipMatch = location.match(/\b\d{5}\b/);
+  return zipMatch ? zipMatch[0] : null;
+}
+
 // Enable logger
 app.use('*', logger(console.log));
 
@@ -512,17 +576,10 @@ app.get("/make-server-a7e285ba/auth/me", async (c) => {
 app.put("/make-server-a7e285ba/auth/profile", async (c) => {
   try {
     const authHeader = c.req.header('Authorization');
-    if (!authHeader) {
-      return c.json({ error: "No authorization header" }, 401);
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const supabaseClient = getSupabaseClient();
-
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    const { user, error: authError } = await verifyUser(authHeader);
 
     if (authError || !user) {
-      return c.json({ error: "Unauthorized" }, 401);
+      return c.json({ error: authError || "Unauthorized" }, 401);
     }
 
     const body = await c.req.json();
@@ -656,17 +713,14 @@ app.delete("/make-server-a7e285ba/auth/account", async (c) => {
       return c.json({ error: "No authorization header" }, 401);
     }
 
-    const token = authHeader.replace('Bearer ', '');
-    const supabaseClient = getSupabaseClient();
-    const supabaseAdmin = getSupabaseAdmin();
-
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    const { user, error: authError } = await verifyUser(c.req.header('Authorization'));
 
     if (authError || !user) {
-      return c.json({ error: "Unauthorized" }, 401);
+      return c.json({ error: authError || "Unauthorized" }, 401);
     }
 
     console.log(`Account deletion requested for user: ${user.id}`);
+    const supabaseAdmin = getSupabaseAdmin();
 
     // Soft delete: Mark account as deleted with deletion timestamp
     // Account will be kept for 15 days for recovery
@@ -851,16 +905,10 @@ app.post("/make-server-a7e285ba/auth/make-admin", async (c) => {
 app.post("/make-server-a7e285ba/upload/avatar", async (c) => {
   try {
     const authHeader = c.req.header('Authorization');
-    if (!authHeader) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const supabaseClient = getSupabaseClient();
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    const { user, error: authError } = await verifyUser(authHeader);
 
     if (authError || !user) {
-      return c.json({ error: "Unauthorized" }, 401);
+      return c.json({ error: authError || "Unauthorized" }, 401);
     }
 
     const formData = await c.req.formData();
@@ -938,16 +986,10 @@ app.post("/make-server-a7e285ba/upload/avatar", async (c) => {
 app.post("/make-server-a7e285ba/upload/listing-image", async (c) => {
   try {
     const authHeader = c.req.header('Authorization');
-    if (!authHeader) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const supabaseClient = getSupabaseClient();
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    const { user, error: authError } = await verifyUser(authHeader);
 
     if (authError || !user) {
-      return c.json({ error: "Unauthorized" }, 401);
+      return c.json({ error: authError || "Unauthorized" }, 401);
     }
 
     const formData = await c.req.formData();
@@ -1025,16 +1067,10 @@ app.post("/make-server-a7e285ba/upload/listing-image", async (c) => {
 app.post("/make-server-a7e285ba/upload/cover-photo", async (c) => {
   try {
     const authHeader = c.req.header('Authorization');
-    if (!authHeader) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const supabaseClient = getSupabaseClient();
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    const { user, error: authError } = await verifyUser(authHeader);
 
     if (authError || !user) {
-      return c.json({ error: "Unauthorized" }, 401);
+      return c.json({ error: authError || "Unauthorized" }, 401);
     }
 
     const formData = await c.req.formData();
@@ -1128,10 +1164,12 @@ app.get("/make-server-a7e285ba/listings", async (c) => {
     const search = c.req.query('search');
     const userId = c.req.query('userId');
     const random = c.req.query('random'); // Random ordering flag
+    const zipCode = c.req.query('zipCode'); // User's zip code for radius filtering
+    const radius = c.req.query('radius'); // Radius in miles
     const page = parseInt(c.req.query('page') || '1');
     const limit = parseInt(c.req.query('limit') || '20');
     const offset = (page - 1) * limit;
-    console.log(`📊 [LISTINGS] Parse params took: ${Date.now() - parseStart}ms (random: ${random})`);
+    console.log(`📊 [LISTINGS] Parse params took: ${Date.now() - parseStart}ms (random: ${random}, zipCode: ${zipCode}, radius: ${radius})`);
 
     const buildStart = Date.now();
     let query = supabaseAdmin
@@ -1166,11 +1204,16 @@ app.get("/make-server-a7e285ba/listings", async (c) => {
       `)
       .eq('status', 'active');
     
-    // For random mode, fetch more items and shuffle them
-    if (random === 'true') {
-      // Fetch more items to have a good pool for randomization
+    // For random mode or radius filtering, fetch more items
+    if (random === 'true' || (zipCode && radius)) {
+      // Fetch more items to have a good pool for randomization or radius filtering
       query = query.order('created_at', { ascending: false });
-      query = query.range(0, 99); // Fetch 100 items to randomize
+      // When radius filtering, fetch ALL listings (no limit) to ensure accurate results
+      if (zipCode && radius) {
+        query = query.range(0, 9999); // Fetch up to 10,000 items for radius filtering
+      } else {
+        query = query.range(0, 99); // Fetch 100 items to randomize
+      }
     } else {
       query = query.order('created_at', { ascending: false });
       query = query.range(offset, offset + limit - 1);
@@ -1193,16 +1236,122 @@ app.get("/make-server-a7e285ba/listings", async (c) => {
       console.error(`❌ [LISTINGS] Error fetching listings: ${error.message}`);
       return c.json({ error: error.message }, 400);
     }
+    
+    // Log sample location data for debugging
+    if (listings && listings.length > 0) {
+      console.log(`📍 [LISTINGS] Sample locations from database:`);
+      listings.slice(0, 5).forEach((listing, idx) => {
+        console.log(`  ${idx + 1}. ID ${listing.id}: location="${listing.location}"`);
+      });
+    }
 
     const processStart = Date.now();
     
     let finalListings = listings;
     let hasMore = listings && listings.length === limit;
     
+    // Apply radius filtering if zipCode and radius are provided
+    if (zipCode && radius && listings) {
+      const radiusNum = parseInt(radius);
+      console.log(`📍 [LISTINGS] Applying radius filter: ${radiusNum} miles from zip ${zipCode} (${listings.length} listings to check)`);
+      
+      // Get coordinates for the search zip code
+      const searchCoords = await getZipCodeCoordinates(zipCode);
+      
+      if (searchCoords) {
+        console.log(`📍 [LISTINGS] Search coordinates: ${searchCoords.lat}, ${searchCoords.lng}`);
+        
+        // Extract all unique zip codes from listings first
+        const uniqueZips = new Set<string>();
+        const listingZipMap = new Map<string, string | null>();
+        
+        for (const listing of listings) {
+          const listingZip = extractZipCode(listing.location || '');
+          listingZipMap.set(listing.id, listingZip);
+          console.log(`📍 [DEBUG] Listing ${listing.id} location: "${listing.location}" -> extracted zip: ${listingZip}`);
+          if (listingZip) {
+            uniqueZips.add(listingZip);
+          }
+        }
+        
+        console.log(`📍 [LISTINGS] Found ${uniqueZips.size} unique zip codes to geocode from ${listings.length} listings`);
+        console.log(`📍 [LISTINGS] Unique zips: ${Array.from(uniqueZips).join(', ')}`);
+        
+        // Geocode all unique zip codes in parallel (with batching to avoid rate limits)
+        const geocodeStart = Date.now();
+        const zipArray = Array.from(uniqueZips);
+        const batchSize = 10; // Process 10 at a time to avoid rate limits
+        
+        for (let i = 0; i < zipArray.length; i += batchSize) {
+          const batch = zipArray.slice(i, i + batchSize);
+          await Promise.all(batch.map(zip => getZipCodeCoordinates(zip)));
+        }
+        
+        console.log(`📍 [LISTINGS] Geocoding took: ${Date.now() - geocodeStart}ms`);
+        
+        // Now filter listings by distance
+        const filteredByDistance = [];
+        let includedCount = 0;
+        let excludedCount = 0;
+        
+        for (const listing of listings) {
+          const listingZip = listingZipMap.get(listing.id);
+          
+          if (!listingZip) {
+            // If listing doesn't have a zip code, include it
+            filteredByDistance.push(listing);
+            includedCount++;
+            continue;
+          }
+          
+          const listingCoords = zipCodeCache.get(listingZip);
+          
+          if (!listingCoords) {
+            // If we can't geocode the listing, include it (benefit of the doubt)
+            filteredByDistance.push(listing);
+            includedCount++;
+            continue;
+          }
+          
+          const distance = calculateDistance(
+            searchCoords.lat,
+            searchCoords.lng,
+            listingCoords.lat,
+            listingCoords.lng
+          );
+          
+          if (distance <= radiusNum) {
+            filteredByDistance.push(listing);
+            includedCount++;
+            console.log(`✅ Listing ${listing.id} at ${listingZip}: ${distance.toFixed(1)} miles (INCLUDED)`);
+          } else {
+            excludedCount++;
+            console.log(`❌ Listing ${listing.id} at ${listingZip}: ${distance.toFixed(1)} miles (EXCLUDED)`);
+          }
+        }
+        
+        finalListings = filteredByDistance;
+        console.log(`📍 [LISTINGS] Radius filtering: ${listings.length} total -> ${includedCount} included, ${excludedCount} excluded`);
+        
+        // Store debug info to return in response
+        (c as any).radiusDebug = {
+          searchZip: zipCode,
+          searchCoords: searchCoords,
+          radiusMiles: radiusNum,
+          totalListings: listings.length,
+          includedCount,
+          excludedCount,
+          uniqueZipsCount: uniqueZips.size
+        };
+      } else {
+        console.log(`📍 [LISTINGS] Could not geocode search zip ${zipCode}, skipping radius filter`);
+      }
+    }
+    
     // If random mode, shuffle and paginate
-    if (random === 'true' && listings) {
+    if (random === 'true' && finalListings) {
       // Shuffle using Fisher-Yates algorithm
-      const shuffled = [...listings];
+      const shuffled = [...finalListings];
       for (let i = shuffled.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
@@ -1213,6 +1362,14 @@ app.get("/make-server-a7e285ba/listings", async (c) => {
       const end = offset + limit;
       finalListings = shuffled.slice(start, end);
       hasMore = end < shuffled.length;
+    } else if (finalListings) {
+      // If not in random mode but we did radius filtering, apply pagination
+      if (zipCode && radius) {
+        const start = offset;
+        const end = offset + limit;
+        hasMore = end < finalListings.length;
+        finalListings = finalListings.slice(start, end);
+      }
     }
     
     const totalPages = hasMore ? page + 1 : page;
@@ -1221,7 +1378,7 @@ app.get("/make-server-a7e285ba/listings", async (c) => {
     const totalTime = Date.now() - startTime;
     console.log(`✅ [LISTINGS] Total request time: ${totalTime}ms`);
 
-    return c.json({ 
+    const response: any = { 
       success: true, 
       listings: finalListings,
       pagination: {
@@ -1231,7 +1388,14 @@ app.get("/make-server-a7e285ba/listings", async (c) => {
         totalPages,
         hasMore
       }
-    });
+    };
+    
+    // Add debug info if radius filtering was applied
+    if ((c as any).radiusDebug) {
+      response.debug = (c as any).radiusDebug;
+    }
+
+    return c.json(response);
   } catch (error) {
     console.error(`❌ [LISTINGS] Error fetching listings: ${error}`);
     return c.json({ error: "Failed to fetch listings" }, 500);
@@ -1243,18 +1407,11 @@ app.get("/make-server-a7e285ba/listings", async (c) => {
 app.get("/make-server-a7e285ba/listings/archived", async (c) => {
   try {
     const authHeader = c.req.header('Authorization');
-    if (!authHeader) {
-      console.error('❌ [ARCHIVED] No auth header');
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const supabaseClient = getSupabaseClient();
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    const { user, error: authError } = await verifyUser(authHeader);
 
     if (authError || !user) {
       console.error('❌ [ARCHIVED] Auth error:', authError);
-      return c.json({ error: "Unauthorized" }, 401);
+      return c.json({ error: authError || "Unauthorized" }, 401);
     }
 
     console.log('✅ [ARCHIVED] User authenticated:', user.id);
@@ -1372,16 +1529,10 @@ app.get("/make-server-a7e285ba/listings/:id", async (c) => {
 app.post("/make-server-a7e285ba/listings", async (c) => {
   try {
     const authHeader = c.req.header('Authorization');
-    if (!authHeader) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const supabaseClient = getSupabaseClient();
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    const { user, error: authError } = await verifyUser(authHeader);
 
     if (authError || !user) {
-      return c.json({ error: "Unauthorized" }, 401);
+      return c.json({ error: authError || "Unauthorized" }, 401);
     }
 
     const body = await c.req.json();
@@ -1443,16 +1594,10 @@ app.post("/make-server-a7e285ba/listings", async (c) => {
 app.put("/make-server-a7e285ba/listings/:id", async (c) => {
   try {
     const authHeader = c.req.header('Authorization');
-    if (!authHeader) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const supabaseClient = getSupabaseClient();
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    const { user, error: authError } = await verifyUser(authHeader);
 
     if (authError || !user) {
-      return c.json({ error: "Unauthorized" }, 401);
+      return c.json({ error: authError || "Unauthorized" }, 401);
     }
 
     const id = c.req.param('id');
@@ -1509,16 +1654,10 @@ app.put("/make-server-a7e285ba/listings/:id", async (c) => {
 app.delete("/make-server-a7e285ba/listings/:id", async (c) => {
   try {
     const authHeader = c.req.header('Authorization');
-    if (!authHeader) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const supabaseClient = getSupabaseClient();
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    const { user, error: authError } = await verifyUser(authHeader);
 
     if (authError || !user) {
-      return c.json({ error: "Unauthorized" }, 401);
+      return c.json({ error: authError || "Unauthorized" }, 401);
     }
 
     const id = c.req.param('id');
@@ -1583,16 +1722,10 @@ app.post("/make-server-a7e285ba/listings/archive-expired", async (c) => {
 app.post("/make-server-a7e285ba/listings/:id/relist", async (c) => {
   try {
     const authHeader = c.req.header('Authorization');
-    if (!authHeader) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const supabaseClient = getSupabaseClient();
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    const { user, error: authError } = await verifyUser(authHeader);
 
     if (authError || !user) {
-      return c.json({ error: "Unauthorized" }, 401);
+      return c.json({ error: authError || "Unauthorized" }, 401);
     }
 
     const id = c.req.param('id');
@@ -1644,16 +1777,10 @@ app.post("/make-server-a7e285ba/listings/:id/relist", async (c) => {
 app.post("/make-server-a7e285ba/listings/:id/archive", async (c) => {
   try {
     const authHeader = c.req.header('Authorization');
-    if (!authHeader) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const supabaseClient = getSupabaseClient();
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    const { user, error: authError } = await verifyUser(authHeader);
 
     if (authError || !user) {
-      return c.json({ error: "Unauthorized" }, 401);
+      return c.json({ error: authError || "Unauthorized" }, 401);
     }
 
     const id = c.req.param('id');
@@ -1704,16 +1831,10 @@ app.post("/make-server-a7e285ba/listings/:id/archive", async (c) => {
 app.get("/make-server-a7e285ba/saved-items", async (c) => {
   try {
     const authHeader = c.req.header('Authorization');
-    if (!authHeader) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const supabaseClient = getSupabaseClient();
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    const { user, error: authError } = await verifyUser(authHeader);
 
     if (authError || !user) {
-      return c.json({ error: "Unauthorized" }, 401);
+      return c.json({ error: authError || "Unauthorized" }, 401);
     }
 
     const supabaseAdmin = getSupabaseAdmin();
@@ -1778,16 +1899,10 @@ app.get("/make-server-a7e285ba/saved-items", async (c) => {
 app.post("/make-server-a7e285ba/saved-items", async (c) => {
   try {
     const authHeader = c.req.header('Authorization');
-    if (!authHeader) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const supabaseClient = getSupabaseClient();
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    const { user, error: authError } = await verifyUser(authHeader);
 
     if (authError || !user) {
-      return c.json({ error: "Unauthorized" }, 401);
+      return c.json({ error: authError || "Unauthorized" }, 401);
     }
 
     const body = await c.req.json();
@@ -1839,16 +1954,10 @@ app.post("/make-server-a7e285ba/saved-items", async (c) => {
 app.delete("/make-server-a7e285ba/saved-items/:itemId", async (c) => {
   try {
     const authHeader = c.req.header('Authorization');
-    if (!authHeader) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const supabaseClient = getSupabaseClient();
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    const { user, error: authError } = await verifyUser(authHeader);
 
     if (authError || !user) {
-      return c.json({ error: "Unauthorized" }, 401);
+      return c.json({ error: authError || "Unauthorized" }, 401);
     }
 
     const itemId = c.req.param('itemId');
@@ -1889,16 +1998,10 @@ app.delete("/make-server-a7e285ba/saved-items/:itemId", async (c) => {
 app.get("/make-server-a7e285ba/messages/unread-count", async (c) => {
   try {
     const authHeader = c.req.header('Authorization');
-    if (!authHeader) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const supabaseClient = getSupabaseClient();
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    const { user, error: authError } = await verifyUser(authHeader);
 
     if (authError || !user) {
-      return c.json({ error: "Unauthorized" }, 401);
+      return c.json({ error: authError || "Unauthorized" }, 401);
     }
 
     const supabaseAdmin = getSupabaseAdmin();
@@ -1944,16 +2047,10 @@ app.get("/make-server-a7e285ba/messages/unread-count", async (c) => {
 app.get("/make-server-a7e285ba/conversations", async (c) => {
   try {
     const authHeader = c.req.header('Authorization');
-    if (!authHeader) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const supabaseClient = getSupabaseClient();
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    const { user, error: authError } = await verifyUser(authHeader);
 
     if (authError || !user) {
-      return c.json({ error: "Unauthorized" }, 401);
+      return c.json({ error: authError || "Unauthorized" }, 401);
     }
 
     const supabaseAdmin = getSupabaseAdmin();
@@ -2018,16 +2115,10 @@ app.get("/make-server-a7e285ba/conversations", async (c) => {
 app.delete("/make-server-a7e285ba/conversations", async (c) => {
   try {
     const authHeader = c.req.header('Authorization');
-    if (!authHeader) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const supabaseClient = getSupabaseClient();
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    const { user, error: authError } = await verifyUser(authHeader);
 
     if (authError || !user) {
-      return c.json({ error: "Unauthorized" }, 401);
+      return c.json({ error: authError || "Unauthorized" }, 401);
     }
 
     const body = await c.req.json();
@@ -2085,16 +2176,10 @@ app.delete("/make-server-a7e285ba/conversations", async (c) => {
 app.post("/make-server-a7e285ba/conversations", async (c) => {
   try {
     const authHeader = c.req.header('Authorization');
-    if (!authHeader) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const supabaseClient = getSupabaseClient();
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    const { user, error: authError } = await verifyUser(authHeader);
 
     if (authError || !user) {
-      return c.json({ error: "Unauthorized" }, 401);
+      return c.json({ error: authError || "Unauthorized" }, 401);
     }
 
     const body = await c.req.json();
@@ -2217,20 +2302,14 @@ app.get("/make-server-a7e285ba/conversations/:id/messages", async (c) => {
   
   try {
     const authHeader = c.req.header('Authorization');
-    if (!authHeader) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const supabaseClient = getSupabaseClient();
     
     const authStart = Date.now();
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    const { user, error: authError } = await verifyUser(authHeader);
     authTime = Date.now() - authStart;
     console.log(`[PERF] Auth verification took ${authTime}ms`);
 
     if (authError || !user) {
-      return c.json({ error: "Unauthorized" }, 401);
+      return c.json({ error: authError || "Unauthorized" }, 401);
     }
 
     const conversationId = c.req.param('id');
@@ -2336,16 +2415,10 @@ app.get("/make-server-a7e285ba/conversations/:id/messages", async (c) => {
 app.post("/make-server-a7e285ba/messages", async (c) => {
   try {
     const authHeader = c.req.header('Authorization');
-    if (!authHeader) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const supabaseClient = getSupabaseClient();
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    const { user, error: authError } = await verifyUser(authHeader);
 
     if (authError || !user) {
-      return c.json({ error: "Unauthorized" }, 401);
+      return c.json({ error: authError || "Unauthorized" }, 401);
     }
 
     // Check content type to handle multipart form data
@@ -2605,16 +2678,10 @@ app.get("/make-server-a7e285ba/users/:userId/reviews", async (c) => {
 app.get("/make-server-a7e285ba/reviews/can-review/:userId", async (c) => {
   try {
     const authHeader = c.req.header('Authorization');
-    if (!authHeader) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const supabaseClient = getSupabaseClient();
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    const { user, error: authError } = await verifyUser(authHeader);
 
     if (authError || !user) {
-      return c.json({ error: "Unauthorized" }, 401);
+      return c.json({ error: authError || "Unauthorized" }, 401);
     }
 
     const revieweeId = c.req.param('userId');
@@ -2699,16 +2766,10 @@ app.get("/make-server-a7e285ba/reviews/can-review/:userId", async (c) => {
 app.post("/make-server-a7e285ba/reviews", async (c) => {
   try {
     const authHeader = c.req.header('Authorization');
-    if (!authHeader) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const supabaseClient = getSupabaseClient();
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    const { user, error: authError } = await verifyUser(authHeader);
 
     if (authError || !user) {
-      return c.json({ error: "Unauthorized" }, 401);
+      return c.json({ error: authError || "Unauthorized" }, 401);
     }
 
     const body = await c.req.json();
@@ -2792,16 +2853,10 @@ app.post("/make-server-a7e285ba/reviews", async (c) => {
 app.delete("/make-server-a7e285ba/reviews/:reviewId", async (c) => {
   try {
     const authHeader = c.req.header('Authorization');
-    if (!authHeader) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const supabaseClient = getSupabaseClient();
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    const { user, error: authError } = await verifyUser(authHeader);
 
     if (authError || !user) {
-      return c.json({ error: "Unauthorized" }, 401);
+      return c.json({ error: authError || "Unauthorized" }, 401);
     }
 
     const reviewId = c.req.param('reviewId');
@@ -2944,16 +2999,10 @@ app.post("/make-server-a7e285ba/admin/recalculate-review-counts", async (c) => {
 app.get("/make-server-a7e285ba/notifications", async (c) => {
   try {
     const authHeader = c.req.header('Authorization');
-    if (!authHeader) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const supabaseClient = getSupabaseClient();
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    const { user, error: authError } = await verifyUser(authHeader);
 
     if (authError || !user) {
-      return c.json({ error: "Unauthorized" }, 401);
+      return c.json({ error: authError || "Unauthorized" }, 401);
     }
 
     const supabaseAdmin = getSupabaseAdmin();
@@ -2992,16 +3041,10 @@ app.get("/make-server-a7e285ba/notifications", async (c) => {
 app.get("/make-server-a7e285ba/search-history", async (c) => {
   try {
     const authHeader = c.req.header('Authorization');
-    if (!authHeader) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const supabaseClient = getSupabaseClient();
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    const { user, error: authError } = await verifyUser(authHeader);
 
     if (authError || !user) {
-      return c.json({ error: "Unauthorized" }, 401);
+      return c.json({ error: authError || "Unauthorized" }, 401);
     }
 
     // Use SQL table instead of KV store
@@ -3037,16 +3080,10 @@ app.get("/make-server-a7e285ba/search-history", async (c) => {
 app.post("/make-server-a7e285ba/search-history", async (c) => {
   try {
     const authHeader = c.req.header('Authorization');
-    if (!authHeader) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const supabaseClient = getSupabaseClient();
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    const { user, error: authError } = await verifyUser(authHeader);
 
     if (authError || !user) {
-      return c.json({ error: "Unauthorized" }, 401);
+      return c.json({ error: authError || "Unauthorized" }, 401);
     }
 
     const body = await c.req.json();
@@ -3079,16 +3116,10 @@ app.post("/make-server-a7e285ba/search-history", async (c) => {
 app.delete("/make-server-a7e285ba/search-history", async (c) => {
   try {
     const authHeader = c.req.header('Authorization');
-    if (!authHeader) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const supabaseClient = getSupabaseClient();
-    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+    const { user, error: authError } = await verifyUser(authHeader);
 
     if (authError || !user) {
-      return c.json({ error: "Unauthorized" }, 401);
+      return c.json({ error: authError || "Unauthorized" }, 401);
     }
 
     // Use SQL table instead of KV store
@@ -3743,7 +3774,7 @@ app.delete("/make-server-a7e285ba/notifications/:id", async (c) => {
 // LEGACY ENDPOINTS (Deprecated - kept for backward compatibility)
 // ============================================
 
-// Get retailers (legacy endpoint - returns empty for now)
+// Get retailers (legacy endpoint - fetches from retailer_profiles)
 app.get('/make-server-a7e285ba/admin/retailers', async (c) => {
   try {
     const { user, error } = await verifyAdmin(c.req.header('Authorization'));
@@ -3751,22 +3782,53 @@ app.get('/make-server-a7e285ba/admin/retailers', async (c) => {
       return c.json({ error: error || 'Unauthorized - Admin access required' }, 401);
     }
 
-    // Return empty array - retailers are now managed through banner_positions
+    // Create Supabase client
+    const supabase = getSupabaseAdmin();
+
+    // Fetch retailer profiles from the database
+    const { data: profiles, error: fetchError } = await supabase
+      .from('retailer_profiles')
+      .select('id, company_name, logo_url, is_always_on_top, created_at')
+      .order('created_at', { ascending: false });
+
+    if (fetchError) {
+      console.error('Error fetching retailer profiles:', fetchError);
+      return c.json({ 
+        success: false,
+        error: 'Failed to fetch retailer profiles',
+        retailers: []
+      }, 500);
+    }
+
+    console.log('Fetched retailer profiles:', profiles);
+
+    // Format as retailers with active status
+    const retailers = (profiles || []).map(profile => ({
+      id: profile.id,
+      name: profile.company_name,
+      logo_url: profile.logo_url,
+      status: 'active',
+      is_always_on_top: profile.is_always_on_top,
+      created_at: profile.created_at
+    }));
+
+    console.log('Formatted retailers:', retailers);
+
     return c.json({
       success: true,
-      retailers: []
+      retailers
     });
   } catch (error) {
-    console.error('Error in get retailers (legacy):', error);
+    console.error('Error in get retailers:', error);
     return c.json({ 
-      success: true,
-      retailers: [],
-      warning: 'Legacy endpoint - use retailer-banners instead'
-    });
+      success: false,
+      error: 'Failed to fetch retailers',
+      retailers: []
+    }, 500);
   }
 });
 
-// Get banners (legacy endpoint - returns empty for now)
+// Get banners (legacy endpoint - fetches from promotional_banners)
 app.get('/make-server-a7e285ba/admin/banners', async (c) => {
   try {
     const { user, error } = await verifyAdmin(c.req.header('Authorization'));
@@ -3774,18 +3836,49 @@ app.get('/make-server-a7e285ba/admin/banners', async (c) => {
       return c.json({ error: error || 'Unauthorized - Admin access required' }, 401);
     }
 
-    // Return empty array - banners are now managed through promotional_banners
+    // Create Supabase client
+    const supabase = getSupabaseAdmin();
+
+    // Fetch promotional banners from the database
+    const { data: promobanners, error: fetchError } = await supabase
+      .from('promotional_banners')
+      .select('id, name, link, pc_image_url, mobile_image_url, is_active, created_at, display_order')
+      .order('display_order', { ascending: true });
+
+    if (fetchError) {
+      console.error('Error fetching promotional banners:', fetchError);
+      return c.json({ 
+        success: false,
+        error: 'Failed to fetch promotional banners',
+        banners: []
+      }, 500);
+    }
+
+    console.log('Fetched promotional banners:', promobanners);
+
+    // Format as banners with status (using name as title, pc_image_url as image_url, link as link_url for compatibility)
+    const banners = (promobanners || []).map(banner => ({
+      id: banner.id,
+      title: banner.name,
+      image_url: banner.pc_image_url,
+      link_url: banner.link,
+      status: banner.is_active ? 'active' : 'inactive',
+      created_at: banner.created_at
+    }));
+
+    console.log('Formatted banners:', banners);
+
     return c.json({
       success: true,
-      banners: []
+      banners
     });
   } catch (error) {
-    console.error('Error in get banners (legacy):', error);
+    console.error('Error in get banners:', error);
     return c.json({ 
-      success: true,
-      banners: [],
-      warning: 'Legacy endpoint - use promotional-banners instead'
-    });
+      success: false,
+      error: 'Failed to fetch banners',
+      banners: []
+    }, 500);
   }
 });
 
@@ -4963,12 +5056,30 @@ app.get('/make-server-a7e285ba/reports/:id/details', async (c) => {
         return null;
       }
       try {
+        // First try to get user profile from database
+        const { data: profile } = await supabaseAdmin
+          .from('user_profiles')
+          .select('*')
+          .eq('id', userId)
+          .maybeSingle();
+        
+        if (profile) {
+          const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(' ').trim();
+          return {
+            id: profile.id,
+            email: profile.email || 'No email',
+            name: fullName || profile.email || 'Unknown User',
+            avatar: profile.avatar_url || null
+          };
+        }
+        
+        // Fallback to auth metadata if profile doesn't exist
         const { data } = await supabaseAdmin.auth.admin.getUserById(userId);
         if (data?.user) {
           return {
             id: data.user.id,
             email: data.user.email || 'No email',
-            name: data.user.user_metadata?.name || 'Unknown User',
+            name: data.user.user_metadata?.name || data.user.email || 'Unknown User',
             avatar: data.user.user_metadata?.avatar_url || null
           };
         }
@@ -5156,6 +5267,187 @@ app.delete('/make-server-a7e285ba/reports/:id', async (c) => {
     return c.json({ success: true });
   } catch (error) {
     console.error('Error in delete report route:', error);
+    return c.json({ 
+      success: false, 
+      error: 'Internal server error' 
+    }, 500);
+  }
+});
+
+// Admin: Take action on reported content (delete listing/deal and notify owner)
+app.post('/make-server-a7e285ba/reports/:id/action', async (c) => {
+  const { user, error } = await verifyAdmin(c.req.header('Authorization'));
+  
+  if (error || !user) {
+    return c.json({ success: false, error: error || 'Admin access required' }, 403);
+  }
+
+  try {
+    const reportId = c.req.param('id');
+    const body = await c.req.json();
+    const { action, reason, resolutionNotes } = body;
+
+    if (!action || !reason) {
+      return c.json({ 
+        success: false, 
+        error: 'Missing required fields: action and reason' 
+      }, 400);
+    }
+
+    const supabaseAdmin = getSupabaseAdmin();
+
+    // Get the report details
+    const { data: report, error: reportError } = await supabaseAdmin
+      .from('reports_a7e285ba')
+      .select('*')
+      .eq('id', reportId)
+      .single();
+
+    if (reportError || !report) {
+      return c.json({ 
+        success: false, 
+        error: 'Report not found' 
+      }, 404);
+    }
+
+    let contentOwnerId = null;
+    let contentTitle = 'Content';
+    let actionTaken = '';
+
+    // Handle different content types
+    if (report.content_type === 'listing' && action === 'delete') {
+      // Get listing details
+      const { data: listing } = await supabaseAdmin
+        .from('marketplace_listings')
+        .select('user_id, title')
+        .eq('id', report.content_id)
+        .single();
+
+      if (listing) {
+        contentOwnerId = listing.user_id;
+        contentTitle = listing.title;
+
+        // Delete the listing
+        const { error: deleteError } = await supabaseAdmin
+          .from('marketplace_listings')
+          .delete()
+          .eq('id', report.content_id);
+
+        if (deleteError) {
+          console.error('Error deleting listing:', deleteError);
+          return c.json({ 
+            success: false, 
+            error: 'Failed to delete listing: ' + deleteError.message 
+          }, 500);
+        }
+        actionTaken = 'deleted';
+      }
+    } else if (report.content_type === 'deal' && action === 'delete') {
+      // Get deal details
+      const { data: deal } = await supabaseAdmin
+        .from('deals')
+        .select('title, retailer:retailer_profiles(owner_id)')
+        .eq('id', report.content_id)
+        .single();
+
+      if (deal && deal.retailer) {
+        contentOwnerId = deal.retailer.owner_id;
+        contentTitle = deal.title;
+
+        // Delete the deal
+        const { error: deleteError } = await supabaseAdmin
+          .from('deals')
+          .delete()
+          .eq('id', report.content_id);
+
+        if (deleteError) {
+          console.error('Error deleting deal:', deleteError);
+          return c.json({ 
+            success: false, 
+            error: 'Failed to delete deal: ' + deleteError.message 
+          }, 500);
+        }
+        actionTaken = 'deleted';
+      }
+    } else if (action === 'warn') {
+      // For warnings, we need to identify the content owner
+      if (report.content_type === 'listing') {
+        const { data: listing } = await supabaseAdmin
+          .from('marketplace_listings')
+          .select('user_id, title')
+          .eq('id', report.content_id)
+          .single();
+        if (listing) {
+          contentOwnerId = listing.user_id;
+          contentTitle = listing.title;
+        }
+      } else if (report.content_type === 'deal') {
+        const { data: deal } = await supabaseAdmin
+          .from('deals')
+          .select('title, retailer:retailer_profiles(owner_id)')
+          .eq('id', report.content_id)
+          .single();
+        if (deal && deal.retailer) {
+          contentOwnerId = deal.retailer.owner_id;
+          contentTitle = deal.title;
+        }
+      } else if (report.content_type === 'user') {
+        contentOwnerId = report.content_id;
+        contentTitle = 'Your account';
+      }
+      actionTaken = 'warned';
+    }
+
+    // Send notification to content owner
+    if (contentOwnerId) {
+      const notificationMessage = action === 'delete' 
+        ? `Your ${report.content_type} "${contentTitle}" has been removed by an admin. Reason: ${reason}`
+        : `You have received a warning regarding your ${report.content_type} "${contentTitle}". Reason: ${reason}`;
+
+      const { error: notifError } = await supabaseAdmin
+        .from('notifications')
+        .insert({
+          user_id: contentOwnerId,
+          title: action === 'delete' ? 'Content Removed' : 'Warning Received',
+          message: notificationMessage,
+          type: 'admin_action',
+          read: false,
+          is_read: false,
+          metadata: {
+            report_id: reportId,
+            report_reason: report.reason,
+            admin_reason: reason,
+            resolution_notes: resolutionNotes,
+            content_type: report.content_type,
+            action: action
+          },
+          created_at: new Date().toISOString()
+        });
+
+      if (notifError) {
+        console.error('Error creating notification:', notifError);
+      }
+    }
+
+    // Update report status to resolved
+    const { error: updateError } = await supabaseAdmin
+      .from('reports_a7e285ba')
+      .update({
+        status: 'resolved',
+        reviewed_by: user.id,
+        reviewed_at: new Date().toISOString(),
+        resolution_notes: resolutionNotes || `Action taken: ${actionTaken} - ${reason}`
+      })
+      .eq('id', reportId);
+
+    if (updateError) {
+      console.error('Error updating report:', updateError);
+    }
+
+    console.log(`✅ Admin ${user.id} took action '${action}' on ${report.content_type} ${report.content_id}`);
+    return c.json({ success: true, message: `Successfully ${actionTaken} ${report.content_type}` });
+  } catch (error) {
+    console.error('Error in admin action route:', error);
     return c.json({ 
       success: false, 
       error: 'Internal server error' 

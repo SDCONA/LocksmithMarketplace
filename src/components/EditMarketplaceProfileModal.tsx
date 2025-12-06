@@ -10,6 +10,7 @@ import { Badge } from "./ui/badge";
 import { Switch } from "./ui/switch";
 import { Separator } from "./ui/separator";
 import { UserService } from "../utils/services/user";
+import { AuthService } from "../utils/auth";
 import { toast } from "sonner";
 import { 
   Edit3,
@@ -65,22 +66,45 @@ export function EditMarketplaceProfileModal({
     setIsLoading(true);
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Get fresh access token
+      const accessToken = await AuthService.getFreshToken();
+      
+      if (!accessToken) {
+        toast.error('You must be logged in to update your profile');
+        setIsLoading(false);
+        return;
+      }
       
       // Include the selected image as marketplace avatar in the profile data
       const updatedProfileData = {
-        ...formData,
+        bio: formData.bio,
+        location: formData.location,
+        phonePublic: formData.phonePublic,
+        emailPublic: formData.emailPublic,
+        showLastActive: formData.showLastActive,
+        autoReply: formData.autoReply,
+        autoReplyMessage: formData.autoReplyMessage,
         ...(selectedImage && { marketplaceAvatar: selectedImage })
       };
       
-      // Update marketplace profile
+      // Save to backend
+      const result = await UserService.updateProfile(accessToken, updatedProfileData);
+      
+      if (!result.success) {
+        toast.error(result.error || 'Failed to update profile');
+        setIsLoading(false);
+        return;
+      }
+      
+      // Update marketplace profile in parent component
       onUpdateMarketplaceProfile(updatedProfileData);
       
+      toast.success('Profile updated successfully!');
       console.log('Marketplace profile updated:', updatedProfileData);
       onClose();
     } catch (error) {
       console.error('Failed to update marketplace profile:', error);
+      toast.error('Failed to update profile');
     } finally {
       setIsLoading(false);
     }
@@ -127,56 +151,6 @@ export function EditMarketplaceProfileModal({
                   <p className="text-sm text-gray-600 mb-2">
                     Your profile picture is managed through your main account settings.
                   </p>
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    size="sm"
-                    onClick={async () => {
-                      const input = document.createElement('input');
-                      input.type = 'file';
-                      input.accept = 'image/*';
-                      input.onchange = async (e) => {
-                        const file = (e.target as HTMLInputElement).files?.[0];
-                        if (file) {
-                          try {
-                            // Create a preview URL for immediate feedback
-                            const reader = new FileReader();
-                            reader.onload = (event) => {
-                              const imageUrl = event.target?.result as string;
-                              setSelectedImage(imageUrl);
-                            };
-                            reader.readAsDataURL(file);
-                            
-                            // Upload to backend
-                            if (user?.accessToken) {
-                              toast.promise(
-                                UserService.uploadAvatar(user.accessToken, file),
-                                {
-                                  loading: 'Uploading avatar...',
-                                  success: (uploadResult) => {
-                                    if (uploadResult.success && uploadResult.url) {
-                                      setSelectedImage(uploadResult.url);
-                                      return 'Avatar uploaded successfully!';
-                                    }
-                                    throw new Error(uploadResult.error || 'Upload failed');
-                                  },
-                                  error: (err) => err.message || 'Failed to upload avatar'
-                                }
-                              );
-                            } else {
-                              toast.error('You must be logged in to upload an avatar');
-                            }
-                          } catch (error) {
-                            console.error('Error uploading avatar:', error);
-                            toast.error('Failed to upload avatar');
-                          }
-                        }
-                      };
-                      input.click();
-                    }}
-                  >
-                    Change Picture
-                  </Button>
                 </div>
               </div>
             </CardContent>
@@ -209,147 +183,6 @@ export function EditMarketplaceProfileModal({
                 <p className="text-xs text-gray-500 mt-1">
                   {formData.bio.length}/300 characters
                 </p>
-              </div>
-
-
-
-              <div>
-                <Label htmlFor="website" className="flex items-center gap-2">
-                  <Globe className="h-3 w-3" />
-                  Website (Optional)
-                </Label>
-                <Input
-                  id="website"
-                  value={formData.website}
-                  onChange={(e) => handleInputChange('website', e.target.value)}
-                  placeholder="https://your-website.com"
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Privacy Settings */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Eye className="h-4 w-4" />
-                Privacy Settings
-              </CardTitle>
-              <CardDescription>
-                Control what information is visible to other users
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Show Phone Number</Label>
-                  <p className="text-xs text-gray-500">
-                    Allow buyers to see your phone number for direct contact
-                  </p>
-                </div>
-                <Switch
-                  checked={formData.phonePublic}
-                  onCheckedChange={(checked) => handleInputChange('phonePublic', checked)}
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Show Email Address</Label>
-                  <p className="text-xs text-gray-500">
-                    Allow buyers to see your email address
-                  </p>
-                </div>
-                <Switch
-                  checked={formData.emailPublic}
-                  onCheckedChange={(checked) => handleInputChange('emailPublic', checked)}
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Show Last Active</Label>
-                  <p className="text-xs text-gray-500">
-                    Display when you were last online to buyers
-                  </p>
-                </div>
-                <Switch
-                  checked={formData.showLastActive}
-                  onCheckedChange={(checked) => handleInputChange('showLastActive', checked)}
-                />
-              </div>
-
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label className="flex items-center gap-2">
-                    <Shield className="h-3 w-3" />
-                    Showcase Verification Badge
-                  </Label>
-                  <p className="text-xs text-gray-500">
-                    Prominently display your verified status
-                  </p>
-                </div>
-                <Switch
-                  checked={formData.showcaseVerification}
-                  onCheckedChange={(checked) => handleInputChange('showcaseVerification', checked)}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Communication Settings */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm flex items-center gap-2">
-                <MessageCircle className="h-4 w-4" />
-                Communication Settings
-              </CardTitle>
-              <CardDescription>
-                Manage how you communicate with buyers
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Auto-Reply Messages</Label>
-                  <p className="text-xs text-gray-500">
-                    Automatically respond to new messages
-                  </p>
-                </div>
-                <Switch
-                  checked={formData.autoReply}
-                  onCheckedChange={(checked) => handleInputChange('autoReply', checked)}
-                />
-              </div>
-
-              {formData.autoReply && (
-                <div>
-                  <Label htmlFor="autoReplyMessage">Auto-Reply Message</Label>
-                  <Textarea
-                    id="autoReplyMessage"
-                    value={formData.autoReplyMessage}
-                    onChange={(e) => handleInputChange('autoReplyMessage', e.target.value)}
-                    placeholder="Enter your automatic reply message..."
-                    className="min-h-[60px]"
-                    maxLength={200}
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    {formData.autoReplyMessage.length}/200 characters
-                  </p>
-                </div>
-              )}
-
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label>Allow Price Offers</Label>
-                  <p className="text-xs text-gray-500">
-                    Let buyers make offers on your listings
-                  </p>
-                </div>
-                <Switch
-                  checked={formData.allowOffers}
-                  onCheckedChange={(checked) => handleInputChange('allowOffers', checked)}
-                />
               </div>
             </CardContent>
           </Card>

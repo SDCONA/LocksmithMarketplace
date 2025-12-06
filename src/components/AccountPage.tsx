@@ -84,6 +84,8 @@ export function AccountPage({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [hasRetailerProfile, setHasRetailerProfile] = useState(false);
   const [isCheckingRetailer, setIsCheckingRetailer] = useState(true);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [loadingNotifications, setLoadingNotifications] = useState(false);
   const [profileData, setProfileData] = useState({
     firstName: user?.firstName || "",
     lastName: user?.lastName || "",
@@ -142,6 +144,40 @@ export function AccountPage({
 
     checkRetailerProfile();
   }, [user]);
+
+  // Load notifications when tab is activated
+  useEffect(() => {
+    if (activeTab === 'notifications') {
+      loadNotifications();
+    }
+  }, [activeTab]);
+
+  const loadNotifications = async () => {
+    setLoadingNotifications(true);
+    const accessToken = await AuthService.getFreshToken();
+    if (!accessToken) {
+      setLoadingNotifications(false);
+      return;
+    }
+
+    try {
+      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-a7e285ba/notifications`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
+
+      const data = await response.json();
+      if (data.success && data.notifications) {
+        setNotifications(data.notifications);
+      }
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+      toast.error('Failed to load notifications');
+    } finally {
+      setLoadingNotifications(false);
+    }
+  };
 
   const handleSaveProfile = async () => {
     const accessToken = await AuthService.getFreshToken();
@@ -418,10 +454,14 @@ export function AccountPage({
 
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 xs:space-y-5 sm:space-y-6">
-          <TabsList className="grid w-full grid-cols-2 h-auto">
+          <TabsList className="grid w-full grid-cols-3 h-auto">
             <TabsTrigger value="profile" className="flex items-center space-x-1 xs:space-x-2 py-2 xs:py-2.5 px-1 xs:px-2 text-xs xs:text-sm">
               <User className="h-3 w-3 xs:h-4 xs:w-4" />
               <span className="hidden xs:inline">Profile</span>
+            </TabsTrigger>
+            <TabsTrigger value="notifications" className="flex items-center space-x-1 xs:space-x-2 py-2 xs:py-2.5 px-1 xs:px-2 text-xs xs:text-sm">
+              <Bell className="h-3 w-3 xs:h-4 xs:w-4" />
+              <span className="hidden xs:inline">Notifications</span>
             </TabsTrigger>
             <TabsTrigger value="settings" className="flex items-center space-x-1 xs:space-x-2 py-2 xs:py-2.5 px-1 xs:px-2 text-xs xs:text-sm">
               <Settings className="h-3 w-3 xs:h-4 xs:w-4" />
@@ -555,11 +595,113 @@ export function AccountPage({
                     </div>
                   </div>
                 </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="city">City</Label>
+                    <div className="relative">
+                      <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                      <Input
+                        id="city"
+                        type="text"
+                        value={profileData.city}
+                        onChange={(e) => setProfileData({...profileData, city: e.target.value})}
+                        disabled={!isEditing}
+                        className="pl-10"
+                      />
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
 
 
+
+          {/* Notifications Tab */}
+          <TabsContent value="notifications" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Notifications</CardTitle>
+                <CardDescription>View and manage your notifications from admins and system updates.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {loadingNotifications ? (
+                  <div className="flex justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  </div>
+                ) : notifications.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Bell className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+                    <p className="text-gray-600">No notifications yet</p>
+                    <p className="text-sm text-gray-500 mt-1">You{'\''}ll see admin actions and important updates here</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {notifications.map((notification) => (
+                      <div
+                        key={notification.id}
+                        className={`border rounded-lg p-4 ${
+                          notification.is_read || notification.read ? 'bg-gray-50' : 'bg-blue-50 border-blue-200'
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className={`p-2 rounded-full ${
+                            notification.type === 'admin_action' ? 'bg-red-100' :
+                            notification.type === 'policy_update' ? 'bg-yellow-100' :
+                            'bg-blue-100'
+                          }`}>
+                            {notification.type === 'admin_action' ? (
+                              <AlertTriangle className="h-5 w-5 text-red-600" />
+                            ) : notification.type === 'policy_update' ? (
+                              <Shield className="h-5 w-5 text-yellow-600" />
+                            ) : (
+                              <Bell className="h-5 w-5 text-blue-600" />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-start justify-between gap-2">
+                              <h4 className="font-medium">{notification.title}</h4>
+                              {!(notification.is_read || notification.read) && (
+                                <Badge variant="default" className="bg-blue-600 text-xs">New</Badge>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-700 mt-1">{notification.message}</p>
+                            
+                            {notification.metadata && (
+                              <div className="mt-3 bg-white border rounded p-3 text-sm space-y-2">
+                                {notification.metadata.report_reason && (
+                                  <div>
+                                    <span className="font-medium text-gray-600">Report Reason: </span>
+                                    <span className="text-gray-700">{notification.metadata.report_reason}</span>
+                                  </div>
+                                )}
+                                {notification.metadata.resolution_notes && (
+                                  <div>
+                                    <span className="font-medium text-gray-600">Admin Notes: </span>
+                                    <span className="text-gray-700">{notification.metadata.resolution_notes}</span>
+                                  </div>
+                                )}
+                                {notification.metadata.action && (
+                                  <Badge variant="outline" className="mt-2">
+                                    Action: {notification.metadata.action}
+                                  </Badge>
+                                )}
+                              </div>
+                            )}
+                            
+                            <p className="text-xs text-gray-500 mt-2">
+                              {new Date(notification.created_at).toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
           {/* Settings Tab */}
           <TabsContent value="settings" className="space-y-6">

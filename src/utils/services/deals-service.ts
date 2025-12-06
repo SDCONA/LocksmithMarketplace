@@ -560,6 +560,30 @@ export class DealsService {
     return data.retailers;
   }
 
+  // Multi-source search (database + external APIs like eBay)
+  static async searchDeals(searchQuery: string = "", excludedRetailers: string[] = [], includeExternal: boolean = true) {
+    const params = new URLSearchParams();
+    if (searchQuery) params.append('q', searchQuery);
+    if (excludedRetailers.length > 0) params.append('exclude', excludedRetailers.join(','));
+    if (!includeExternal) params.append('includeExternal', 'false');
+    
+    const queryString = params.toString() ? `?${params.toString()}` : '';
+    
+    const response = await fetch(`${API_URL}/public/search${queryString}`, {
+      headers: {
+        Authorization: `Bearer ${publicAnonKey}`,
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Failed to search deals");
+    }
+
+    const data = await response.json();
+    return data; // Returns { deals, sources }
+  }
+
   // ========================================
   // SAVED DEALS
   // ========================================

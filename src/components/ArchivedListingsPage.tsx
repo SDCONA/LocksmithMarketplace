@@ -4,6 +4,7 @@ import { ArrowLeft, RefreshCw, Archive, Clock, Calendar, Trash2, AlertTriangle }
 import { MarketplaceCard } from "./MarketplaceCard";
 import { toast } from "sonner";
 import { projectId, publicAnonKey } from "../utils/supabase/info";
+import { createClient } from "../utils/supabase/client";
 import {
   Dialog,
   DialogContent,
@@ -60,7 +61,11 @@ export function ArchivedListingsPage({ user, onBack, onViewListing }: ArchivedLi
   const loadArchivedListings = async () => {
     try {
       setLoading(true);
-      const accessToken = user?.accessToken;
+      
+      // Get fresh access token from Supabase session
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
       
       console.log('🔍 Loading archived listings with token:', accessToken ? 'exists' : 'missing');
       
@@ -104,7 +109,11 @@ export function ArchivedListingsPage({ user, onBack, onViewListing }: ArchivedLi
   const handleRelist = async (listingId: string) => {
     try {
       setRelistingId(listingId);
-      const accessToken = user?.accessToken;
+      
+      // Get fresh access token from Supabase session
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
       
       if (!accessToken) {
         toast.error('Authentication required');
@@ -142,7 +151,11 @@ export function ArchivedListingsPage({ user, onBack, onViewListing }: ArchivedLi
   const handleDelete = async (listingId: string) => {
     try {
       setDeletingId(listingId);
-      const accessToken = user?.accessToken;
+      
+      // Get fresh access token from Supabase session
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
       
       if (!accessToken) {
         toast.error('Authentication required');

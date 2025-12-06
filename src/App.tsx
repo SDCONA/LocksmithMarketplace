@@ -13,10 +13,11 @@ import { toast, Toaster } from "sonner";
 import { LocalStorage } from "./lib/localStorage";
 import { searchProducts, ParsedProduct } from "./utils/api";
 import { AuthService, isAdminUser } from "./utils/auth";
-import { ListingsService, SavedItemsService, MessagingService, NotificationsService } from "./utils/services";
+import { ListingsService, SavedItemsService, MessagingService, NotificationsService, DealsService } from "./utils/services";
 import { createClient } from "./utils/supabase/client";
 import { projectId } from "./utils/supabase/info";
 import { debounce } from "./utils/debounce";
+import { DealModal, DealModalData } from "./components/DealModal";
 
 import { EditListingModal } from "./components/EditListingModal";
 import { ReportModal } from "./components/ReportModal";
@@ -186,6 +187,7 @@ export default function App() {
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState(mockSearchResults);
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [selectedDealForModal, setSelectedDealForModal] = useState<DealModalData | null>(null);
   
   // Search Filter states
   const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
@@ -241,6 +243,76 @@ export default function App() {
   
   // Saved Marketplace Listings State  
   const [savedMarketplaceListings, setSavedMarketplaceListings] = useState<any[]>([]);
+  
+  // Fix saved items with incorrect URLs (Figma links)
+  useEffect(() => {
+    const fixSavedItemUrls = async () => {
+      if (savedItems.length === 0) return;
+      
+      const itemsToFix = savedItems.filter(item => 
+        item.productUrl && item.productUrl.includes('figma.site')
+      );
+      
+      if (itemsToFix.length === 0) {
+        console.log('All saved items have correct URLs');
+        return;
+      }
+      
+      console.log(`Fixing ${itemsToFix.length} saved items with incorrect URLs...`);
+      
+      const accessToken = await AuthService.getFreshToken();
+      if (!accessToken) return;
+      
+      try {
+        // Fetch fresh data for each item with wrong URL
+        const fixedItems = await Promise.all(
+          itemsToFix.map(async (item) => {
+            try {
+              const dealData = await DealsService.getDeal(item.id);
+              if (dealData && dealData.external_url) {
+                // Update the saved item in the database
+                await SavedItemsService.saveItem(accessToken, item.id, 'product', {
+                  ...item,
+                  productUrl: dealData.external_url,
+                  retailer: {
+                    ...item.retailer,
+                    website: dealData.external_url
+                  }
+                });
+                
+                return {
+                  ...item,
+                  productUrl: dealData.external_url,
+                  retailer: {
+                    ...item.retailer,
+                    website: dealData.external_url
+                  }
+                };
+              }
+              return item;
+            } catch (error) {
+              console.error(`Failed to fix URL for item ${item.id}:`, error);
+              return item;
+            }
+          })
+        );
+        
+        // Update state with fixed items
+        setSavedItems(prevItems => 
+          prevItems.map(item => {
+            const fixed = fixedItems.find(f => f.id === item.id);
+            return fixed || item;
+          })
+        );
+        
+        toast.success(`Fixed ${itemsToFix.length} product links`);
+      } catch (error) {
+        console.error('Error fixing saved item URLs:', error);
+      }
+    };
+    
+    fixSavedItemUrls();
+  }, [savedItems.length]); // Only run when items are first loaded
 
   // Unread Messages State
   const [unreadMessagesCount, setUnreadMessagesCount] = useState<number>(0);
@@ -355,7 +427,7 @@ export default function App() {
         fetchMarketplaceListings(1, false);
       }
     }
-  }, [currentSection, selectedCategory, selectedCondition, marketplaceSearch]);
+  }, [currentSection, selectedCategory, selectedCondition, marketplaceSearch, zipCode, radius]);
 
   // Fetch marketplace listings from backend with pagination
   const fetchMarketplaceListings = async (page = 1, append = false) => {
@@ -377,10 +449,21 @@ export default function App() {
       if (zipCode && zipCode.length === 5) filters.zipCode = zipCode;
       if (radius) filters.radius = radius;
       
+      console.log('🔍 Fetching listings with filters:', filters);
+      
       const beforeFetch = performance.now();
       const result = await ListingsService.getListings(filters);
       const afterFetch = performance.now();
       console.log(`📡 API call took: ${(afterFetch - beforeFetch).toFixed(0)}ms`);
+      console.log(`📦 Received ${result.listings?.length || 0} listings`);
+      console.log('📋 Full API response:', result);
+      
+      // Log radius filter debug info if available
+      if (result.debug) {
+        console.log('🔍 RADIUS FILTER DEBUG:', result.debug);
+      } else {
+        console.log('⚠️ No debug info in response (radius filter may not have been applied)');
+      }
       
       if (result.success && result.listings) {
         // Transform backend listings to match frontend format
@@ -417,6 +500,9 @@ export default function App() {
           transponderType: listing.transponder_type,
         }));
         
+        console.log('✨ Transformed listings:', transformedListings);
+        console.log(`📝 Setting ${transformedListings.length} listings to state (append: ${append})`);
+        
         // Append or replace items based on pagination
         if (append) {
           setMarketplaceItems(prev => [...prev, ...transformedListings]);
@@ -427,6 +513,11 @@ export default function App() {
         // Update pagination state
         setCurrentPage(page);
         setHasMoreListings(result.pagination?.hasMore || false);
+        
+        // Log final state after setting
+        setTimeout(() => {
+          console.log('🎯 Current marketplaceItems count after setState:', marketplaceItems.length);
+        }, 0);
         
         const endTime = performance.now();
         console.log(`⚡ Total (fetch + transform): ${(endTime - startTime).toFixed(0)}ms, hasMore: ${result.pagination?.hasMore}`);
@@ -509,46 +600,51 @@ export default function App() {
         query = `${year} ${make} ${model} ${query}`;
       }
 
-      // If there's a query, search Key4.com for real products
+      // If there's a query, use multi-source search (database + eBay + future sources)
       if (query) {
-        console.log(`Searching Key4.com for: ${query}`);
+        console.log(`🔍 Multi-source search for: ${query}`);
         
-        const response = await searchProducts(query, 'key4');
+        // Use the new DealsService search that combines database + eBay
+        const result = await DealsService.searchDeals(query, [], true);
         
-        if (response.success && response.products.length > 0) {
-          // Transform parsed products to match SearchResult interface
-          const transformedProducts = response.products.map((product: ParsedProduct) => ({
-            id: product.id,
-            name: product.name,
-            description: product.description,
-            price: product.price,
-            originalPrice: product.originalPrice,
-            image: product.image,
+        if (result.deals && result.deals.length > 0) {
+          // Transform deals to SearchResult format
+          const transformedResults = result.deals.map((deal: any) => ({
+            id: deal.id,
+            name: deal.title,
+            description: deal.description || '',
+            price: deal.salePrice || deal.price || '',
+            originalPrice: deal.originalPrice || '',
+            image: deal.images?.[0]?.image_url || deal.image || '',
             retailer: {
-              name: 'Key4.com',
-              website: 'key4.com',
+              name: deal.sourceType === 'ebay' ? 'eBay' : (deal.retailer_profile?.company_name || 'Retailer'),
+              website: deal.external_url || '#',
               location: 'USA',
             },
-            inStock: product.inStock,
-            productUrl: product.productUrl,
+            inStock: true,
+            productUrl: deal.external_url || '#',
             lastUpdated: 'Just now',
+            dealData: deal.sourceType === 'retailer' ? deal : null, // Include full deal data for database products
           }));
 
-          setSearchResults(transformedProducts);
+          setSearchResults(transformedResults);
           
-          toast.success(`Found ${transformedProducts.length} products from Key4.com`, {
-            description: response.cached ? '(Cached results)' : 'Fresh from retailer',
+          const dbCount = result.deals.filter((d: any) => d.sourceType === 'retailer').length;
+          const ebayCount = result.deals.filter((d: any) => d.sourceType === 'ebay').length;
+          
+          toast.success(`Found ${transformedResults.length} products`, {
+            description: `${dbCount} from retailers, ${ebayCount} from eBay`,
             duration: 3000,
           });
           
           setIsSearching(false);
           return;
         } else {
-          console.log('No products found from Key4.com, showing mock results');
+          console.log('No products found from multi-source search');
         }
       }
       
-      // Fallback to mock results if no query or no results from API
+      // Fallback to mock results if no query or no results
       let filteredResults = mockSearchResults;
       
       if (year && make && model) {
@@ -1054,12 +1150,101 @@ export default function App() {
     }
   };
 
-  const handleClearAllSaved = () => {
-    if (confirm("Are you sure you want to remove all saved items?")) {
+  const handleClearAllSaved = async () => {
+    const accessToken = await AuthService.getFreshToken();
+    if (!accessToken) {
+      toast.error('Please sign in to clear saved items');
+      return;
+    }
+
+    try {
+      // Delete all saved items (products) from database
+      const deletePromises = savedItems.map(item => 
+        SavedItemsService.removeSavedItem(accessToken, item.id, 'product')
+      );
+      
+      await Promise.all(deletePromises);
+      
+      // Clear local state
       setSavedItems([]);
       console.log("All saved items cleared");
       toast.success('All saved items cleared');
+    } catch (error) {
+      console.error('Error clearing saved items:', error);
+      toast.error('Failed to clear some saved items');
     }
+  };
+
+  // Deal Modal Handlers
+  const handleViewDealProduct = (result: any) => {
+    // Only open modal for database deals, not external API results
+    if (result.dealData) {
+      setSelectedDealForModal(result.dealData);
+    }
+  };
+
+  const handleCloseDealModal = () => {
+    setSelectedDealForModal(null);
+  };
+
+  const handleSaveDealFromModal = async (dealId: string) => {
+    if (!user) {
+      handleAuthRequired();
+      return;
+    }
+    
+    const accessToken = await AuthService.getFreshToken();
+    if (!accessToken) {
+      handleAuthRequired();
+      return;
+    }
+    
+    try {
+      const isAlreadySaved = savedItems.some(item => item.id === dealId);
+      
+      if (isAlreadySaved) {
+        // Unsave
+        const result = await SavedItemsService.removeSavedItem(accessToken, dealId, 'product');
+        if (result.success) {
+          setSavedItems(prev => prev.filter(item => item.id !== dealId));
+          toast.success('Deal removed from saved');
+        }
+      } else {
+        // Save - find the deal in search results to get full data
+        const dealInResults = searchResults.find((r: any) => r.id === dealId);
+        if (dealInResults && dealInResults.dealData) {
+          const result = await SavedItemsService.saveItem(accessToken, dealId, 'product', dealInResults);
+          if (result.success) {
+            setSavedItems(prev => [{...dealInResults, savedAt: Date.now()}, ...prev]);
+            toast.success('Deal saved!');
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error saving/unsaving deal:', error);
+      toast.error('Failed to update saved status');
+    }
+  };
+
+  const formatTimeRemaining = (expiresAt: string) => {
+    const now = new Date();
+    const expiry = new Date(expiresAt);
+    const diff = expiry.getTime() - now.getTime();
+    
+    if (diff < 0) return "Expired";
+    
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const days = Math.floor(hours / 24);
+    
+    if (days > 0) return `${days}d ${hours % 24}h left`;
+    if (hours > 0) return `${hours}h ${minutes}m left`;
+    return `${minutes}m left`;
+  };
+
+  const calculateDiscount = (price: number, originalPrice: number) => {
+    const discount = ((originalPrice - price) / originalPrice) * 100;
+    return Math.round(discount);
   };
 
   // Marketplace Listing Save/Unsave Handlers
@@ -1128,10 +1313,27 @@ export default function App() {
     }
   };
 
-  const handleClearAllSavedMarketplaceListings = () => {
-    if (confirm("Are you sure you want to remove all saved marketplace listings?")) {
+  const handleClearAllSavedMarketplaceListings = async () => {
+    const accessToken = await AuthService.getFreshToken();
+    if (!accessToken) {
+      toast.error('Please sign in to clear saved listings');
+      return;
+    }
+
+    try {
+      // Delete all saved marketplace listings from database
+      const deletePromises = savedMarketplaceListings.map(listing => 
+        SavedItemsService.removeSavedItem(accessToken, listing.id, 'listing')
+      );
+      
+      await Promise.all(deletePromises);
+      
+      // Clear local state
       setSavedMarketplaceListings([]);
-      console.log("All saved marketplace listings cleared");
+      toast.success('All saved marketplace listings cleared');
+    } catch (error) {
+      console.error('Error clearing saved listings:', error);
+      toast.error('Failed to clear some saved listings');
     }
   };
 
@@ -1185,19 +1387,8 @@ export default function App() {
       if (item.condition !== selectedCondition) return false;
     }
 
-    // Location filter (zip code based filtering)
-    if (zipCode && zipCode.length === 5) {
-      // Check if the item location includes the entered zip code
-      // Location format is typically "City, State" or "City, State ZIP"
-      const locationIncludesZip = item.location.includes(zipCode);
-      
-      if (radius < 500) {
-        // For non-nationwide search, filter by zip code match
-        // In a real application, this would use a geocoding service 
-        // to calculate actual distances based on zip codes
-        if (!locationIncludesZip) return false;
-      }
-    }
+    // Note: Location/radius filtering is now handled by the backend with proper geocoding
+    // No need to filter again on the frontend
 
     return true;
   });
@@ -1228,6 +1419,19 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col pb-16">
+      {/* Deal Modal for database products */}
+      {selectedDealForModal && (
+        <DealModal
+          deal={selectedDealForModal}
+          isSaved={savedItems.some(item => item.id === selectedDealForModal.id)}
+          onSave={handleSaveDealFromModal}
+          onClose={handleCloseDealModal}
+          formatTimeRemaining={formatTimeRemaining}
+          calculateDiscount={calculateDiscount}
+          isLoggedIn={!!user}
+        />
+      )}
+
       {/* Header */}
       <header className="sticky top-0 z-50 bg-gradient-to-r from-blue-600/90 via-blue-500/85 to-indigo-600/90 backdrop-blur-xl text-white shadow-[0_8px_32px_rgba(0,0,0,0.12)] border-b border-white/20">
         <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none"></div>
@@ -2131,6 +2335,7 @@ export default function App() {
                         isSaved={savedItems.some(item => item.id === result.id)}
                         isLoggedIn={!!user}
                         onAuthRequired={handleAuthRequired}
+                        onViewProduct={handleViewDealProduct}
                       />
                     ))}
                   </div>

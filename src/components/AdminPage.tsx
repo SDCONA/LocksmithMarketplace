@@ -104,6 +104,11 @@ export function AdminPage({ onBack }: AdminPageProps) {
   const [showReportDetailsDialog, setShowReportDetailsDialog] = useState(false);
   const [reportStatusFilter, setReportStatusFilter] = useState<string>('all');
   const [loadingReportDetails, setLoadingReportDetails] = useState(false);
+  const [showActionDialog, setShowActionDialog] = useState(false);
+  const [actionType, setActionType] = useState<'delete' | 'warn' | 'dismiss'>('delete');
+  const [actionReason, setActionReason] = useState('');
+  const [actionNotes, setActionNotes] = useState('');
+  const [takingAction, setTakingAction] = useState(false);
 
   // Policy management state
   const [termsContent, setTermsContent] = useState<string>('');
@@ -136,7 +141,9 @@ export function AdminPage({ onBack }: AdminPageProps) {
     if (!accessToken) return;
     
     const result = await AdminService.getRetailers(accessToken);
+    console.log('Load retailers result:', result);
     if (result.success && result.retailers) {
+      console.log('Setting retailers:', result.retailers);
       setRetailers(result.retailers);
     }
   };
@@ -146,7 +153,9 @@ export function AdminPage({ onBack }: AdminPageProps) {
     if (!accessToken) return;
     
     const result = await AdminService.getBanners(accessToken);
+    console.log('Load banners result:', result);
     if (result.success && result.banners) {
+      console.log('Setting banners:', result.banners);
       setBanners(result.banners);
     }
   };
@@ -791,6 +800,42 @@ export function AdminPage({ onBack }: AdminPageProps) {
     }
   };
 
+  const handleTakeAction = async () => {
+    if (!selectedReport || !actionReason.trim()) {
+      toast.error('Please provide a reason for this action');
+      return;
+    }
+
+    setTakingAction(true);
+    const accessToken = await AuthService.getFreshToken();
+    if (!accessToken) {
+      toast.error('Authentication required');
+      setTakingAction(false);
+      return;
+    }
+
+    const result = await ReportService.takeAction(
+      accessToken,
+      selectedReport.id,
+      actionType,
+      actionReason,
+      actionNotes || undefined
+    );
+
+    setTakingAction(false);
+
+    if (result.success) {
+      toast.success(result.message || 'Action completed successfully');
+      setShowActionDialog(false);
+      setShowReportDetailsDialog(false);
+      setActionReason('');
+      setActionNotes('');
+      loadReports(); // Refresh reports list
+    } else {
+      toast.error(result.error || 'Failed to take action');
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="container mx-auto px-4 max-w-7xl">
@@ -802,7 +847,6 @@ export function AdminPage({ onBack }: AdminPageProps) {
                 <ShieldCheck className="h-8 w-8 text-blue-600" />
                 Admin Panel
               </h1>
-              <p className="text-gray-600 mt-1">Manage users, content, retailers, banners, and vehicle database</p>
             </div>
             <Button onClick={onBack} variant="outline">
               <X className="h-4 w-4 mr-2" />
@@ -2331,7 +2375,7 @@ export function AdminPage({ onBack }: AdminPageProps) {
                             </AvatarFallback>
                           </Avatar>
                           <div>
-                            <p className="font-medium">{reportDetails.reporter.name}</p>
+                            <p className="font-medium">{reportDetails.reporter.name || reportDetails.reporter.email || 'Unknown User'}</p>
                             <p className="text-sm text-gray-600 flex items-center gap-1 mt-1">
                               <Mail className="h-3 w-3" />
                               {reportDetails.reporter.email}
@@ -2469,55 +2513,161 @@ export function AdminPage({ onBack }: AdminPageProps) {
               )}
 
               {/* Action Buttons */}
-              <div className="flex gap-2 pt-4 border-t">
-                {selectedReport.status === 'pending' && (
-                  <Button
-                    onClick={() => {
-                      handleUpdateReportStatus(selectedReport.id, 'reviewed');
-                      setShowReportDetailsDialog(false);
-                    }}
-                    className="flex-1"
-                  >
-                    Mark as Reviewed
-                  </Button>
-                )}
-                {selectedReport.status === 'reviewed' && (
-                  <>
+              <div className="flex flex-col gap-2 pt-4 border-t">
+                {(selectedReport.content_type === 'listing' || selectedReport.content_type === 'deal') && selectedReport.status !== 'resolved' && (
+                  <div className="flex gap-2">
                     <Button
+                      variant="destructive"
                       onClick={() => {
-                        handleUpdateReportStatus(selectedReport.id, 'resolved', 'Issue has been resolved');
-                        setShowReportDetailsDialog(false);
+                        setActionType('delete');
+                        setShowActionDialog(true);
                       }}
                       className="flex-1"
                     >
-                      <CheckCircle className="h-4 w-4 mr-2" />
-                      Mark Resolved
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Delete Content
                     </Button>
                     <Button
                       variant="outline"
                       onClick={() => {
-                        handleUpdateReportStatus(selectedReport.id, 'dismissed', 'Report dismissed - not actionable');
+                        setActionType('warn');
+                        setShowActionDialog(true);
+                      }}
+                      className="flex-1"
+                    >
+                      <Bell className="h-4 w-4 mr-2" />
+                      Warn User
+                    </Button>
+                  </div>
+                )}
+                
+                <div className="flex gap-2">
+                  {selectedReport.status === 'pending' && (
+                    <Button
+                      onClick={() => {
+                        handleUpdateReportStatus(selectedReport.id, 'reviewed');
                         setShowReportDetailsDialog(false);
                       }}
                       className="flex-1"
                     >
-                      <XCircle className="h-4 w-4 mr-2" />
-                      Dismiss
+                      Mark as Reviewed
                     </Button>
-                  </>
-                )}
-                <Button
-                  variant="destructive"
-                  onClick={() => handleDeleteReport(selectedReport.id)}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete Report
-                </Button>
+                  )}
+                  {selectedReport.status !== 'resolved' && (
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setActionType('dismiss');
+                        setShowActionDialog(true);
+                      }}
+                      className="flex-1"
+                    >
+                      <XCircle className="h-4 w-4 mr-2" />
+                      Dismiss Report
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    onClick={() => handleDeleteReport(selectedReport.id)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Report
+                  </Button>
+                </div>
               </div>
             </div>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowReportDetailsDialog(false)}>Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Take Action Dialog */}
+      <Dialog open={showActionDialog} onOpenChange={setShowActionDialog}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>
+              {actionType === 'delete' && 'Delete Content'}
+              {actionType === 'warn' && 'Warn User'}
+              {actionType === 'dismiss' && 'Dismiss Report'}
+            </DialogTitle>
+            <DialogDescription>
+              {actionType === 'delete' && 'This will permanently delete the reported content and notify the owner.'}
+              {actionType === 'warn' && 'This will send a warning notification to the content owner.'}
+              {actionType === 'dismiss' && 'This will dismiss the report without taking action on the content.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="action-reason">
+                Reason for {actionType === 'delete' ? 'Deletion' : actionType === 'warn' ? 'Warning' : 'Dismissal'} *
+              </Label>
+              <Textarea
+                id="action-reason"
+                placeholder={`Explain why you are ${actionType === 'delete' ? 'deleting this content' : actionType === 'warn' ? 'warning the user' : 'dismissing this report'}...`}
+                value={actionReason}
+                onChange={(e) => setActionReason(e.target.value)}
+                rows={3}
+                className="mt-1"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                This will be visible to the content owner in their notifications.
+              </p>
+            </div>
+
+            <div>
+              <Label htmlFor="action-notes">Additional Notes (Optional)</Label>
+              <Textarea
+                id="action-notes"
+                placeholder="Add any additional internal notes..."
+                value={actionNotes}
+                onChange={(e) => setActionNotes(e.target.value)}
+                rows={2}
+                className="mt-1"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                These notes are for your records and will be saved with the report.
+              </p>
+            </div>
+
+            {selectedReport && (
+              <div className="bg-gray-50 p-3 rounded border">
+                <p className="text-xs text-gray-600 mb-1">Report Reason:</p>
+                <p className="text-sm font-medium">{selectedReport.reason}</p>
+                {selectedReport.description && (
+                  <>
+                    <p className="text-xs text-gray-600 mt-2 mb-1">Description:</p>
+                    <p className="text-sm">{selectedReport.description}</p>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowActionDialog(false);
+                setActionReason('');
+                setActionNotes('');
+              }}
+              disabled={takingAction}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant={actionType === 'delete' ? 'destructive' : 'default'}
+              onClick={handleTakeAction}
+              disabled={takingAction || !actionReason.trim()}
+            >
+              {takingAction ? 'Processing...' : 
+                actionType === 'delete' ? 'Delete & Notify' :
+                actionType === 'warn' ? 'Send Warning' :
+                'Dismiss Report'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

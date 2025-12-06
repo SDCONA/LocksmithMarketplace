@@ -1054,7 +1054,12 @@ dealsApp.get('/public/deals', async (c) => {
     }
 
     const { data, error } = await query;
-    if (error) throw error;
+    if (error) {
+      console.error('❌ Database error fetching deals:', error);
+      throw error;
+    }
+
+    console.log(`📊 Database query returned ${data?.length || 0} deals`);
 
     // Separate "always on top" deals from regular deals
     const priorityDeals = data.filter(d => d.retailer_profile?.is_always_on_top);
@@ -1068,6 +1073,8 @@ dealsApp.get('/public/deals', async (c) => {
 
     // Combine: priority deals first, then shuffled regular deals
     const finalDeals = [...priorityDeals, ...regularDeals];
+    
+    console.log(`✅ Returning ${finalDeals.length} deals to frontend`);
 
     return c.json({ deals: finalDeals });
   } catch (error) {
@@ -1091,6 +1098,158 @@ dealsApp.get('/public/retailers', async (c) => {
   } catch (error) {
     console.error('Error fetching retailers:', error);
     return c.json({ error: 'Failed to fetch retailers' }, 500);
+  }
+});
+
+// Multi-source search - combines database deals with external APIs (eBay, etc.)
+dealsApp.get('/public/search', async (c) => {
+  try {
+    await archiveExpiredDeals(); // Clean up expired deals first
+    
+    const query = c.req.query('q') || '';
+    const excludedRetailers = c.req.query('exclude')?.split(',') || [];
+    const includeExternal = c.req.query('includeExternal') !== 'false'; // Default true
+    
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    
+    // 1. Search local database deals
+    let dbQuery = supabase
+      .from('deals')
+      .select(`
+        *,
+        retailer_profile:retailer_profiles!inner(*),
+        deal_type:deal_types(*),
+        images:deal_images(*)
+      `)
+      .eq('status', 'active')
+      .eq('retailer_profile.is_active', true)
+      .gt('expires_at', new Date().toISOString());
+
+    // Apply search filter if query provided
+    if (query) {
+      // Split query into individual words for flexible matching
+      const searchWords = query.toLowerCase().trim().split(/\s+/).filter(w => w.length > 0);
+      
+      if (searchWords.length > 0) {
+        // Build OR conditions for each word to match in title or description
+        const orConditions = searchWords.map(word => {
+          const pattern = `%${word}%`;
+          return `title.ilike.${pattern},description.ilike.${pattern}`;
+        }).join(',');
+        
+        dbQuery = dbQuery.or(orConditions);
+      }
+    }
+
+    if (excludedRetailers.length > 0) {
+      dbQuery = dbQuery.not('retailer_profile_id', 'in', `(${excludedRetailers.join(',')})`)
+    }
+
+    const { data: dbDeals, error: dbError } = await dbQuery;
+    if (dbError) {
+      console.error('❌ Database error in search:', dbError);
+      throw dbError;
+    }
+
+    console.log(`🔍 Search query "${query}" returned ${dbDeals?.length || 0} database deals`);
+
+    // Calculate relevance score for each deal (how many search words matched)
+    const dealsWithScore = (dbDeals || []).map(deal => {
+      let score = 0;
+      if (query) {
+        const searchWords = query.toLowerCase().trim().split(/\s+/);
+        const title = (deal.title || '').toLowerCase();
+        const description = (deal.description || '').toLowerCase();
+        
+        // Count how many search words appear in title or description
+        searchWords.forEach(word => {
+          if (title.includes(word) || description.includes(word)) {
+            score++;
+          }
+        });
+      }
+      
+      return { ...deal, relevanceScore: score };
+    });
+
+    // Separate priority deals and regular deals
+    const priorityDeals = dealsWithScore.filter(d => d.retailer_profile?.is_always_on_top);
+    const regularDeals = dealsWithScore.filter(d => !d.retailer_profile?.is_always_on_top);
+
+    // Sort priority deals by relevance score (best match first)
+    priorityDeals.sort((a, b) => b.relevanceScore - a.relevanceScore);
+
+    // Sort regular deals by relevance score, then randomize within same score
+    regularDeals.sort((a, b) => {
+      if (b.relevanceScore !== a.relevanceScore) {
+        return b.relevanceScore - a.relevanceScore;
+      }
+      return Math.random() - 0.5; // Randomize items with same score
+    });
+
+    const finalDbDeals = [...priorityDeals, ...regularDeals].map(deal => ({
+      ...deal,
+      source: 'database',
+      sourceType: 'retailer',
+    }));
+
+    // 2. Search external sources (eBay, etc.) if enabled
+    let externalProducts: any[] = [];
+    
+    if (includeExternal && query) {
+      try {
+        // Dynamically import eBay API
+        const { ebayAPI } = await import('./ebay-api.tsx');
+        
+        if (ebayAPI.isEnabled()) {
+          const ebayResults = await ebayAPI.searchKeys(query, 20);
+          externalProducts = ebayResults.map(product => ({
+            id: product.id,
+            title: product.title,
+            description: `Condition: ${product.condition}${product.location ? ` • Location: ${product.location}` : ''}`,
+            price: product.price,
+            original_price: null,
+            external_url: product.url,
+            expires_at: null,
+            retailer_profile: {
+              id: 'ebay',
+              company_name: 'eBay',
+              logo_url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/EBay_logo.svg/300px-EBay_logo.svg.png',
+              is_always_on_top: false,
+            },
+            deal_type: null,
+            images: product.imageUrl ? [{
+              id: `${product.id}-img`,
+              image_url: product.imageUrl,
+              display_order: 0,
+            }] : [],
+            source: product.source,
+            sourceType: 'external',
+            currency: product.currency,
+            condition: product.condition,
+            sellerName: product.sellerName,
+            shippingCost: product.shippingCost,
+          }));
+        }
+      } catch (error) {
+        console.error('Error fetching external products:', error);
+        // Don't fail the entire request if external API fails
+      }
+    }
+
+    // 3. Combine results: Database deals first, then external products
+    const allResults = [...finalDbDeals, ...externalProducts];
+
+    return c.json({
+      deals: allResults,
+      sources: {
+        database: finalDbDeals.length,
+        ebay: externalProducts.length,
+      },
+    });
+  } catch (error) {
+    console.error('Error in multi-source search:', error);
+    return c.json({ error: 'Failed to search deals' }, 500);
   }
 });
 

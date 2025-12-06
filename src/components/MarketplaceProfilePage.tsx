@@ -25,6 +25,7 @@ import {
   Archive
 } from "lucide-react";
 import { projectId, publicAnonKey } from "../utils/supabase/info";
+import { createClient } from "../utils/supabase/client";
 
 interface MarketplaceProfilePageProps {
   user: any;
@@ -65,6 +66,8 @@ export function MarketplaceProfilePage({
   const [showEditModal, setShowEditModal] = useState(false);
   const [archivedListings, setArchivedListings] = useState<any[]>([]);
   const [loadingArchived, setLoadingArchived] = useState(false);
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
 
   // Filter listings to show only the user's own listings
   const userListings = listings.filter(listing => listing.seller.id === user?.id);
@@ -72,15 +75,27 @@ export function MarketplaceProfilePage({
   // Fetch archived listings
   useEffect(() => {
     const fetchArchivedListings = async () => {
-      if (!user?.accessToken) return;
+      if (!user) return;
       
       try {
         setLoadingArchived(true);
+        
+        // Get fresh access token from Supabase session
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        const accessToken = session?.access_token;
+        
+        if (!accessToken) {
+          console.log('No access token available for fetching archived listings');
+          setLoadingArchived(false);
+          return;
+        }
+        
         const response = await fetch(
           `https://${projectId}.supabase.co/functions/v1/make-server-a7e285ba/listings/archived`,
           {
             headers: {
-              'Authorization': `Bearer ${user.accessToken}`,
+              'Authorization': `Bearer ${accessToken}`,
               'Content-Type': 'application/json'
             }
           }
@@ -109,6 +124,41 @@ export function MarketplaceProfilePage({
 
     fetchArchivedListings();
   }, [user]);
+
+  // Fetch reviews
+  useEffect(() => {
+    const fetchReviews = async () => {
+      if (!user?.id) return;
+      
+      try {
+        setLoadingReviews(true);
+        
+        const response = await fetch(
+          `https://${projectId}.supabase.co/functions/v1/make-server-a7e285ba/users/${user.id}/reviews`,
+          {
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${publicAnonKey}`
+            }
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Reviews fetched:', data);
+          setReviews(data.reviews || []);
+        } else {
+          console.error('Failed to fetch reviews:', await response.text());
+        }
+      } catch (error) {
+        console.error('Error fetching reviews:', error);
+      } finally {
+        setLoadingReviews(false);
+      }
+    };
+
+    fetchReviews();
+  }, [user?.id]);
 
   // Calculate user stats
   const totalViews = userListings.reduce((sum, listing) => sum + (listing.views || 0), 0);
@@ -359,44 +409,107 @@ export function MarketplaceProfilePage({
 
               {/* Reviews - RESET: No mock reviews */}
               <div className="space-y-4">
-                {[].map((review: any) => (
-                  <Card key={review.id}>
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-8 w-8">
-                            <AvatarFallback className="bg-gray-100 text-gray-600 text-xs">
-                              {review.reviewer.split(' ').map(n => n[0]).join('')}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <div className="font-medium text-sm">{review.reviewer}</div>
-                            <div className="text-xs text-gray-600">{review.date}</div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <StarRating rating={review.rating} size="sm" />
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              // Handle review report
-                              console.log('Reporting review:', review.id);
-                              alert('Review reported successfully. Thank you for helping keep our community safe.');
-                            }}
-                            className="text-gray-400 hover:text-red-600 p-1"
-                          >
-                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
-                            </svg>
-                          </Button>
-                        </div>
-                      </div>
-                      <p className="text-sm text-gray-700 mb-2">{review.comment}</p>
-                      <div className="text-xs text-gray-500">Product: {review.product}</div>
+                {loadingReviews ? (
+                  <Card>
+                    <CardContent className="p-6 text-center text-gray-500">
+                      Loading reviews...
                     </CardContent>
                   </Card>
-                ))}
+                ) : reviews.length > 0 ? (
+                  reviews.map((review: any) => (
+                    <Card key={review.id}>
+                      <CardContent className="p-6">
+                        <div className="flex items-start gap-4">
+                          <Avatar className="h-10 w-10">
+                            <AvatarImage src={review.reviewer?.avatar_url} />
+                            <AvatarFallback className="bg-blue-100 text-blue-600">
+                              {review.reviewer?.first_name?.[0]}{review.reviewer?.last_name?.[0]}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1">
+                            <div className="flex items-start justify-between mb-2">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <span className="font-medium text-gray-900">
+                                    {review.reviewer?.first_name} {review.reviewer?.last_name}
+                                  </span>
+                                  {review.reviewer?.is_verified && (
+                                    <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">
+                                      <Shield className="h-3 w-3 mr-1" />
+                                      Verified
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <StarRating rating={review.overall_rating || review.rating || 5} size="sm" />
+                                  <span className="text-xs text-gray-500">
+                                    {new Date(review.created_at).toLocaleDateString()}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {review.review_text && (
+                              <p className="text-gray-700 text-sm mb-3 leading-relaxed">
+                                {review.review_text}
+                              </p>
+                            )}
+                            
+                            {review.listing_title && (
+                              <div className="text-xs text-gray-500 mb-3">
+                                <span className="font-medium">Purchase:</span> {review.listing_title}
+                              </div>
+                            )}
+                            
+                            {/* Category Ratings */}
+                            {(review.communication_rating || review.reliability_rating || review.product_quality_rating || review.shipping_rating) && (
+                              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-3 border-t border-gray-100">
+                                {review.communication_rating > 0 && (
+                                  <div className="text-center">
+                                    <div className="text-sm font-medium text-gray-900">
+                                      {review.communication_rating}★
+                                    </div>
+                                    <div className="text-xs text-gray-500">Communication</div>
+                                  </div>
+                                )}
+                                {review.reliability_rating > 0 && (
+                                  <div className="text-center">
+                                    <div className="text-sm font-medium text-gray-900">
+                                      {review.reliability_rating}★
+                                    </div>
+                                    <div className="text-xs text-gray-500">Reliability</div>
+                                  </div>
+                                )}
+                                {review.product_quality_rating > 0 && (
+                                  <div className="text-center">
+                                    <div className="text-sm font-medium text-gray-900">
+                                      {review.product_quality_rating}★
+                                    </div>
+                                    <div className="text-xs text-gray-500">Quality</div>
+                                  </div>
+                                )}
+                                {review.shipping_rating > 0 && (
+                                  <div className="text-center">
+                                    <div className="text-sm font-medium text-gray-900">
+                                      {review.shipping_rating}★
+                                    </div>
+                                    <div className="text-xs text-gray-500">Shipping</div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
+                ) : (
+                  <Card>
+                    <CardContent className="p-6 text-center text-gray-500">
+                      No reviews yet. Complete transactions to receive reviews from buyers.
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             </div>
           </TabsContent>

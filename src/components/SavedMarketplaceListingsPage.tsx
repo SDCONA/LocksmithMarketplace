@@ -53,6 +53,7 @@ export function SavedMarketplaceListingsPage({
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState("newest");
   const [filterByCategory, setFilterByCategory] = useState("all");
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   // Get unique categories for filter
   const categories = Array.from(new Set(savedListings.map(item => item.category)));
@@ -205,11 +206,7 @@ export function SavedMarketplaceListingsPage({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => {
-                    if (confirm("Are you sure you want to remove all saved listings?")) {
-                      onClearAllSaved();
-                    }
-                  }}
+                  onClick={() => setIsDeleteModalOpen(true)}
                   className="text-red-600 border-red-200 hover:bg-red-50"
                 >
                   <Trash2 className="h-4 w-4 mr-2" />
@@ -273,6 +270,41 @@ export function SavedMarketplaceListingsPage({
             </div>
           )}
         </>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {isDeleteModalOpen && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+            <div className="flex items-center mb-4">
+              <div className="bg-red-100 rounded-full p-3 mr-4">
+                <Trash2 className="h-6 w-6 text-red-600" />
+              </div>
+              <h2 className="text-xl font-semibold text-gray-900">Clear All Saved Listings</h2>
+            </div>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to remove all {savedListings.length} saved listing{savedListings.length !== 1 ? 's' : ''}? This action cannot be undone.
+            </p>
+            <div className="flex justify-end space-x-3">
+              <Button
+                variant="outline"
+                onClick={() => setIsDeleteModalOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  onClearAllSaved();
+                  setIsDeleteModalOpen(false);
+                }}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                Clear All
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

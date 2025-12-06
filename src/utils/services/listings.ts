@@ -90,6 +90,8 @@ export class ListingsService {
       if (filters?.page) params.append('page', filters.page.toString());
       if (filters?.limit) params.append('limit', filters.limit.toString());
       if (filters?.random) params.append('random', filters.random.toString());
+      if ((filters as any)?.zipCode) params.append('zipCode', (filters as any).zipCode);
+      if ((filters as any)?.radius) params.append('radius', (filters as any).radius.toString());
 
       const url = `${API_BASE}/listings${params.toString() ? `?${params.toString()}` : ''}`;
       

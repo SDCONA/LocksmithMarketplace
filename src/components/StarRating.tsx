@@ -55,8 +55,8 @@ export function StarRating({
   }
 
   return (
-    <div className={`flex items-center space-x-1 ${className}`}>
-      <div className="flex items-center space-x-0.5">
+    <div className={`flex items-center gap-1 ${className}`}>
+      <div className="flex items-center">
         {stars}
       </div>
       {showValue && (

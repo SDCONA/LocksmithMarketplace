@@ -4,12 +4,15 @@ import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { StarRating } from "./StarRating";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "./ui/dropdown-menu";
-import { ChevronDown, ChevronUp, MoreVertical, Flag, AlertTriangle, UserX, Shield } from "lucide-react";
+import { ChevronDown, ChevronUp, MoreVertical, Flag, AlertTriangle, UserX, Shield, Edit, Trash, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface Review {
   id: string;
   reviewerId: string;
-  reviewerName: string;
+  reviewer: {
+    first_name: string;
+    last_name: string;
+  };
   reviewerAvatar: string;
   rating: number;
   review: string;
@@ -34,17 +37,24 @@ interface UserReviewsSectionProps {
     productQuality: number;
     shipping: number;
   };
+  currentUserId?: string;
+  onEditReview?: (reviewId: string) => void;
+  onDeleteReview?: (reviewId: string) => void;
 }
 
 export function UserReviewsSection({ 
   reviews, 
   averageRating, 
   totalReviews, 
-  categoryAverages 
+  categoryAverages,
+  currentUserId,
+  onEditReview,
+  onDeleteReview
 }: UserReviewsSectionProps) {
-  const [showAllReviews, setShowAllReviews] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const [sortBy, setSortBy] = useState<"newest" | "oldest" | "highest" | "lowest">("newest");
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const reviewsPerPage = 5;
 
   const handleDropdownToggle = (reviewId: string, isOpen: boolean) => {
     // Force close any other dropdowns first
@@ -81,9 +91,16 @@ export function UserReviewsSection({
     alert(`Thank you for reporting this review by ${reviewerName} for: ${reportTypeName}. We'll review your report and take appropriate action if necessary.`);
   };
 
-  const displayedReviews = showAllReviews ? reviews : reviews.slice(0, 3);
+  // Check if review is within 15-day edit window
+  const isReviewEditable = (reviewDate: string): boolean => {
+    const reviewTime = new Date(reviewDate).getTime();
+    const currentTime = new Date().getTime();
+    const fifteenDaysInMs = 15 * 24 * 60 * 60 * 1000;
+    return (currentTime - reviewTime) <= fifteenDaysInMs;
+  };
 
-  const sortedReviews = [...displayedReviews].sort((a, b) => {
+  // Sort all reviews first, then paginate
+  const sortedAllReviews = [...reviews].sort((a, b) => {
     switch (sortBy) {
       case "newest":
         return new Date(b.date).getTime() - new Date(a.date).getTime();
@@ -97,6 +114,9 @@ export function UserReviewsSection({
         return 0;
     }
   });
+
+  const totalPages = Math.ceil(reviews.length / reviewsPerPage);
+  const displayedReviews = sortedAllReviews.slice((currentPage - 1) * reviewsPerPage, currentPage * reviewsPerPage);
 
   const ratingDistribution = [5, 4, 3, 2, 1].map(rating => ({
     rating,
@@ -145,37 +165,6 @@ export function UserReviewsSection({
             ))}
           </div>
         </div>
-
-        {/* Category Averages */}
-        <div className="mt-6 pt-6 border-t border-gray-200">
-          <h4 className="font-medium text-gray-900 mb-4">Rating Breakdown</h4>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center">
-              <div className="text-lg font-semibold text-gray-900">
-                {categoryAverages.communication.toFixed(1)}
-              </div>
-              <div className="text-sm text-gray-600">Communication</div>
-            </div>
-            <div className="text-center">
-              <div className="text-lg font-semibold text-gray-900">
-                {categoryAverages.reliability.toFixed(1)}
-              </div>
-              <div className="text-sm text-gray-600">Reliability</div>
-            </div>
-            <div className="text-center">
-              <div className="text-lg font-semibold text-gray-900">
-                {categoryAverages.productQuality.toFixed(1)}
-              </div>
-              <div className="text-sm text-gray-600">Product Quality</div>
-            </div>
-            <div className="text-center">
-              <div className="text-lg font-semibold text-gray-900">
-                {categoryAverages.shipping.toFixed(1)}
-              </div>
-              <div className="text-sm text-gray-600">Shipping</div>
-            </div>
-          </div>
-        </div>
       </div>
 
       {/* Reviews List */}
@@ -196,20 +185,20 @@ export function UserReviewsSection({
           </div>
 
           <div className="space-y-4">
-            {sortedReviews.map((review) => (
+            {displayedReviews.map((review) => (
               <div key={review.id} className="bg-white p-6 rounded-lg border border-gray-200">
                 <div className="flex items-start space-x-4">
                   <Avatar className="h-10 w-10">
                     <AvatarImage src={review.reviewerAvatar} />
                     <AvatarFallback>
-                      {review.reviewerName.split(' ').map(n => n[0]).join('')}
+                      {review.reviewer.first_name && review.reviewer.last_name ? `${review.reviewer.first_name[0]}${review.reviewer.last_name[0]}` : 'U'}
                     </AvatarFallback>
                   </Avatar>
                   
                   <div className="flex-1 space-y-3">
                     <div className="flex items-center justify-between">
                       <div>
-                        <h4 className="font-medium text-gray-900">{review.reviewerName}</h4>
+                        <h4 className="font-medium text-gray-900">{review.reviewer.first_name && review.reviewer.last_name ? `${review.reviewer.first_name} ${review.reviewer.last_name}` : 'Unknown User'}</h4>
                         <div className="flex items-center space-x-2 mt-1">
                           <StarRating rating={review.rating} size="sm" />
                           <span className="text-sm text-gray-500">{review.date}</span>
@@ -257,28 +246,28 @@ export function UserReviewsSection({
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-48 touch-manipulation">
                           <DropdownMenuItem 
-                            onClick={() => handleMenuItemClick(review.id, "inappropriate-content", review.reviewerName)}
+                            onClick={() => handleMenuItemClick(review.id, "inappropriate-content", review.reviewer.first_name && review.reviewer.last_name ? `${review.reviewer.first_name} ${review.reviewer.last_name}` : 'Unknown User')}
                             className="touch-manipulation cursor-pointer"
                           >
                             <Flag className="h-4 w-4 mr-2" />
                             Inappropriate Content
                           </DropdownMenuItem>
                           <DropdownMenuItem 
-                            onClick={() => handleMenuItemClick(review.id, "spam-fake", review.reviewerName)}
+                            onClick={() => handleMenuItemClick(review.id, "spam-fake", review.reviewer.first_name && review.reviewer.last_name ? `${review.reviewer.first_name} ${review.reviewer.last_name}` : 'Unknown User')}
                             className="touch-manipulation cursor-pointer"
                           >
                             <AlertTriangle className="h-4 w-4 mr-2" />
                             Spam or Fake Review
                           </DropdownMenuItem>
                           <DropdownMenuItem 
-                            onClick={() => handleMenuItemClick(review.id, "harassment", review.reviewerName)}
+                            onClick={() => handleMenuItemClick(review.id, "harassment", review.reviewer.first_name && review.reviewer.last_name ? `${review.reviewer.first_name} ${review.reviewer.last_name}` : 'Unknown User')}
                             className="touch-manipulation cursor-pointer"
                           >
                             <UserX className="h-4 w-4 mr-2" />
                             Harassment
                           </DropdownMenuItem>
                           <DropdownMenuItem 
-                            onClick={() => handleMenuItemClick(review.id, "false-information", review.reviewerName)}
+                            onClick={() => handleMenuItemClick(review.id, "false-information", review.reviewer.first_name && review.reviewer.last_name ? `${review.reviewer.first_name} ${review.reviewer.last_name}` : 'Unknown User')}
                             className="touch-manipulation cursor-pointer"
                           >
                             <Shield className="h-4 w-4 mr-2" />
@@ -286,12 +275,31 @@ export function UserReviewsSection({
                           </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem 
-                            onClick={() => handleMenuItemClick(review.id, "other", review.reviewerName)}
+                            onClick={() => handleMenuItemClick(review.id, "other", review.reviewer.first_name && review.reviewer.last_name ? `${review.reviewer.first_name} ${review.reviewer.last_name}` : 'Unknown User')}
                             className="touch-manipulation cursor-pointer"
                           >
                             <Flag className="h-4 w-4 mr-2" />
                             Other Violation
                           </DropdownMenuItem>
+                          {currentUserId === review.reviewerId && isReviewEditable(review.date) && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem 
+                                onClick={() => onEditReview?.(review.id)}
+                                className="touch-manipulation cursor-pointer"
+                              >
+                                <Edit className="h-4 w-4 mr-2" />
+                                Edit Review
+                              </DropdownMenuItem>
+                              <DropdownMenuItem 
+                                onClick={() => onDeleteReview?.(review.id)}
+                                className="touch-manipulation cursor-pointer"
+                              >
+                                <Trash className="h-4 w-4 mr-2" />
+                                Delete Review
+                              </DropdownMenuItem>
+                            </>
+                          )}
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
@@ -310,53 +318,94 @@ export function UserReviewsSection({
                     )}
 
                     {/* Category Ratings */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-3 border-t border-gray-100">
-                      <div className="text-center">
-                        <div className="text-sm font-medium text-gray-900">
-                          {review.categories.communication}★
+                    {review.categories && (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-3 border-t border-gray-100">
+                        <div className="text-center">
+                          <div className="text-sm font-medium text-gray-900">
+                            {review.categories.communication}★
+                          </div>
+                          <div className="text-xs text-gray-500">Communication</div>
                         </div>
-                        <div className="text-xs text-gray-500">Communication</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-sm font-medium text-gray-900">
-                          {review.categories.reliability}★
+                        <div className="text-center">
+                          <div className="text-sm font-medium text-gray-900">
+                            {review.categories.reliability}★
+                          </div>
+                          <div className="text-xs text-gray-500">Reliability</div>
                         </div>
-                        <div className="text-xs text-gray-500">Reliability</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-sm font-medium text-gray-900">
-                          {review.categories.productQuality}★
+                        <div className="text-center">
+                          <div className="text-sm font-medium text-gray-900">
+                            {review.categories.productQuality}★
+                          </div>
+                          <div className="text-xs text-gray-500">Quality</div>
                         </div>
-                        <div className="text-xs text-gray-500">Quality</div>
-                      </div>
-                      <div className="text-center">
-                        <div className="text-sm font-medium text-gray-900">
-                          {review.categories.shipping}★
+                        <div className="text-center">
+                          <div className="text-sm font-medium text-gray-900">
+                            {review.categories.shipping}★
+                          </div>
+                          <div className="text-xs text-gray-500">Shipping</div>
                         </div>
-                        <div className="text-xs text-gray-500">Shipping</div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               </div>
             ))}
           </div>
 
-          {reviews.length > 3 && (
-            <div className="text-center">
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2 mt-6">
               <Button
                 variant="outline"
-                onClick={() => setShowAllReviews(!showAllReviews)}
-                className="flex items-center space-x-2"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="flex items-center gap-1"
               >
-                <span>
-                  {showAllReviews ? "Show Less" : `Show All ${reviews.length} Reviews`}
-                </span>
-                {showAllReviews ? (
-                  <ChevronUp className="h-4 w-4" />
-                ) : (
-                  <ChevronDown className="h-4 w-4" />
-                )}
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </Button>
+
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => {
+                  // Show first page, last page, current page, and pages around current
+                  const showPage = page === 1 || 
+                                   page === totalPages || 
+                                   Math.abs(page - currentPage) <= 1;
+                  
+                  // Show ellipsis
+                  const showEllipsisBefore = page === currentPage - 2 && currentPage > 3;
+                  const showEllipsisAfter = page === currentPage + 2 && currentPage < totalPages - 2;
+
+                  if (showEllipsisBefore || showEllipsisAfter) {
+                    return <span key={page} className="px-2 text-gray-400">...</span>;
+                  }
+
+                  if (!showPage) return null;
+
+                  return (
+                    <Button
+                      key={page}
+                      variant={currentPage === page ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setCurrentPage(page)}
+                      className="w-10"
+                    >
+                      {page}
+                    </Button>
+                  );
+                })}
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="flex items-center gap-1"
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
           )}

@@ -207,4 +207,35 @@ export class ReportService {
       return { success: false, error: 'Network error' };
     }
   }
+
+  // Admin: Take action on reported content
+  static async takeAction(
+    accessToken: string,
+    reportId: string,
+    action: 'delete' | 'warn' | 'dismiss',
+    reason: string,
+    resolutionNotes?: string
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    try {
+      const response = await fetch(`${API_BASE}/reports/${reportId}/action`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({ action, reason, resolutionNotes }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        return { success: false, error: data.error || 'Failed to take action' };
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error taking action:', error);
+      return { success: false, error: 'Network error' };
+    }
+  }
 }

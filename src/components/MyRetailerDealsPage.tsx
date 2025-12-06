@@ -619,50 +619,6 @@ export function MyRetailerDealsPage({ user, onBack, onNavigateToProfile }: MyRet
                 {" "}{remainingDeals} remaining today
               </p>
             </div>
-            <div className="flex gap-2">
-              {selectedDealIds.size > 0 && (
-                <>
-                  <Button
-                    variant="default"
-                    onClick={handleBulkRenewClick}
-                    className="bg-green-600 hover:bg-green-700"
-                  >
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Renew {selectedDealIds.size}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowBulkArchiveDialog(true)}
-                    className="border-orange-500 text-orange-600 hover:bg-orange-50"
-                  >
-                    <Archive className="h-4 w-4 mr-2" />
-                    Archive {selectedDealIds.size}
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={() => setShowBulkDeleteDialog(true)}
-                  >
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    Delete {selectedDealIds.size}
-                  </Button>
-                </>
-              )}
-              {!isAdmin && (
-                <Button
-                  variant="outline"
-                  onClick={onNavigateToProfile}
-                >
-                  Retailer Profile
-                </Button>
-              )}
-              <Button
-                onClick={handleCreateDeal}
-                disabled={!canCreateDeal}
-                title={!canCreateDeal ? "Daily deal limit reached" : ""}
-              >
-                Create Deal
-              </Button>
-            </div>
           </div>
 
           {!canCreateDeal && (
@@ -674,6 +630,49 @@ export function MyRetailerDealsPage({ user, onBack, onNavigateToProfile }: MyRet
               </div>
             </div>
           )}
+
+          {/* Action Buttons */}
+          <div className="mt-4 flex gap-2 justify-end">
+            {selectedDealIds.size > 0 && (
+              <>
+                <Button
+                  variant="default"
+                  onClick={handleBulkRenewClick}
+                  className="bg-green-600 hover:bg-green-700"
+                >
+                  Renew {selectedDealIds.size}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowBulkArchiveDialog(true)}
+                  className="border-orange-500 text-orange-600 hover:bg-orange-50"
+                >
+                  Archive {selectedDealIds.size}
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => setShowBulkDeleteDialog(true)}
+                >
+                  Delete {selectedDealIds.size}
+                </Button>
+              </>
+            )}
+            {!isAdmin && (
+              <Button
+                variant="outline"
+                onClick={onNavigateToProfile}
+              >
+                Retailer Profile
+              </Button>
+            )}
+            <Button
+              onClick={handleCreateDeal}
+              disabled={!canCreateDeal}
+              title={!canCreateDeal ? "Daily deal limit reached" : ""}
+            >
+              Create Deal
+            </Button>
+          </div>
 
           {/* Filters */}
           <div className="mt-4 flex flex-col md:flex-row gap-3">
@@ -820,7 +819,7 @@ export function MyRetailerDealsPage({ user, onBack, onNavigateToProfile }: MyRet
 
                     {/* Status Badge */}
                     <div className="absolute bottom-2 left-2">
-                      <Badge variant={deal.status === "active" ? "default" : deal.status === "paused" ? "secondary" : "outline"}>
+                      <Badge variant={deal.status === "active" ? "default" : deal.status === "paused" ? "secondary" : "outline"} className="bg-green-600 text-white">
                         {deal.status}
                       </Badge>
                     </div>
@@ -1345,7 +1344,6 @@ export function MyRetailerDealsPage({ user, onBack, onNavigateToProfile }: MyRet
             <AlertDialogTitle>Renew {selectedDealIds.size} Deal(s)?</AlertDialogTitle>
             <AlertDialogDescription>
               This will renew <strong>{selectedDealIds.size} selected deal(s)</strong> for another 2 days.
-              This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
