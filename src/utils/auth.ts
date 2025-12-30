@@ -96,6 +96,7 @@ export const AuthService = {
     phone?: string;
     location?: string;
     city?: string;
+    recaptchaToken?: string;
   }): Promise<AuthResponse> {
     try {
       const response = await fetch(`${API_URL}/auth/signup`, {
@@ -128,7 +129,7 @@ export const AuthService = {
   },
 
   // Sign in
-  async signin(email: string, password: string): Promise<AuthResponse> {
+  async signin(email: string, password: string, recaptchaToken?: string): Promise<AuthResponse> {
     try {
       const response = await fetch(`${API_URL}/auth/signin`, {
         method: 'POST',
@@ -136,7 +137,7 @@ export const AuthService = {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${publicAnonKey}`,
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, recaptchaToken }),
       });
 
       const result = await response.json();

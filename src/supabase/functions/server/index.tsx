@@ -4,6 +4,7 @@ import { logger } from "npm:hono/logger";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import dealsApp from "./deals-routes.tsx";
 import { sendAdminWarning } from "./admin-warning-helper.tsx";
+import { verifyRecaptcha } from "./recaptcha-verify.tsx";
 
 const app = new Hono();
 
@@ -197,13 +198,23 @@ app.get("/make-server-a7e285ba/diagnostic", (c) => {
 app.post("/make-server-a7e285ba/auth/signup", async (c) => {
   try {
     const body = await c.req.json();
-    const { email, password, firstName, lastName, phone, location, city } = body;
+    const { email, password, firstName, lastName, phone, location, city, recaptchaToken } = body;
 
     if (!email || !password) {
       return c.json({ error: "Email and password are required" }, 400);
     }
 
-    console.log(`Signup request - email: ${email}, phone: ${phone}, city: ${city}, location: ${location}`);
+    // Verify reCAPTCHA token
+    const recaptchaResult = await verifyRecaptcha(recaptchaToken, 'signup', 0.5);
+    if (!recaptchaResult.success) {
+      console.error(`reCAPTCHA verification failed for signup: ${recaptchaResult.error}`);
+      return c.json({ 
+        error: "Bot detection failed. Please try again.",
+        details: recaptchaResult.error 
+      }, 403);
+    }
+
+    console.log(`Signup request - email: ${email}, phone: ${phone}, city: ${city}, location: ${location}, reCAPTCHA score: ${recaptchaResult.score}`);
 
     const supabaseAdmin = getSupabaseAdmin();
 
@@ -337,13 +348,23 @@ app.post("/make-server-a7e285ba/auth/signup", async (c) => {
 app.post("/make-server-a7e285ba/auth/signin", async (c) => {
   try {
     const body = await c.req.json();
-    const { email, password } = body;
+    const { email, password, recaptchaToken } = body;
 
     if (!email || !password) {
       return c.json({ error: "Email and password are required" }, 400);
     }
 
-    console.log(`Sign in request for email: ${email}`);
+    // Verify reCAPTCHA token
+    const recaptchaResult = await verifyRecaptcha(recaptchaToken, 'login', 0.5);
+    if (!recaptchaResult.success) {
+      console.error(`reCAPTCHA verification failed for login: ${recaptchaResult.error}`);
+      return c.json({ 
+        error: "Bot detection failed. Please try again.",
+        details: recaptchaResult.error 
+      }, 403);
+    }
+
+    console.log(`Sign in request for email: ${email}, reCAPTCHA score: ${recaptchaResult.score}`);
 
     const supabaseClient = getSupabaseClient();
 

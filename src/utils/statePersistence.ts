@@ -56,7 +56,7 @@ export const StatePersistence = {
       console.error('Error loading navigation state:', e);
     }
     return {
-      currentSection: 'retailers',
+      currentSection: 'marketplace',
       selectedListing: null,
       selectedUserId: null,
       selectedSellerId: null,

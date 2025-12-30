@@ -18,6 +18,7 @@ import { projectId, publicAnonKey } from "./utils/supabase/info";
 import { debounce } from "./utils/debounce";
 import { StatePersistence } from "./utils/statePersistence";
 import { DealModal, DealModalData } from "./components/DealModal";
+import { loadRecaptchaScript } from "./utils/recaptcha";
 
 import { EditListingModal } from "./components/EditListingModal";
 import { ReportModal } from "./components/ReportModal";
@@ -109,6 +110,13 @@ export default function App() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
 
+  // Load reCAPTCHA script on mount
+  useEffect(() => {
+    loadRecaptchaScript().catch(error => {
+      console.error('Failed to load reCAPTCHA:', error);
+    });
+  }, []);
+
   // Edge function warm-up removed due to 401 errors
   // Natural traffic will warm up the function instead
 
@@ -176,6 +184,12 @@ export default function App() {
   
   // Navigation State - Initialize from localStorage
   const savedNavState = StatePersistence.getNavigationState();
+  
+  // One-time migration: If saved state has 'retailers', change it to 'marketplace'
+  if (savedNavState.currentSection === 'retailers') {
+    savedNavState.currentSection = 'marketplace';
+    StatePersistence.saveNavigationState(savedNavState);
+  }
   
   const [currentSection, setCurrentSection] = useState<'retailers' | 'search' | 'marketplace' | 'messages' | 'account' | 'listing' | 'settings' | 'profile' | 'help' | 'seller-listings' | 'promote' | 'contact' | 'privacy' | 'terms' | 'deals' | 'marketplace-profile' | 'saved-items' | 'saved-marketplace-listings' | 'saved-deals' | 'archived-listings' | 'admin' | 'retailer-dashboard' | 'my-retailer-deals'>(savedNavState.currentSection as any);
   const [selectedListing, setSelectedListing] = useState<any>(savedNavState.selectedListing);
@@ -430,7 +444,7 @@ export default function App() {
   useEffect(() => {
     if (currentSection === 'admin' && !isAdminUser(user)) {
       toast.error('You do not have permission to access the admin panel');
-      setCurrentSection('retailers');
+      setCurrentSection('marketplace');
     }
   }, [currentSection]);
 
@@ -832,7 +846,7 @@ export default function App() {
     setSearchQuery("");
     setSearchResults(mockSearchResults);
     setShowSearchResults(false);
-    setCurrentSection('retailers');
+    setCurrentSection('marketplace');
     clearFilters();
     setPreviousConversationId(null);
   };
@@ -844,7 +858,7 @@ export default function App() {
   const handleLogout = async () => {
     await AuthService.signout();
     setUser(null);
-    setCurrentSection('retailers');
+    setCurrentSection('marketplace'); // Redirect to marketplace after logout
     setPreviousConversationId(null);
     
     // Clear all persisted state on logout
@@ -1572,22 +1586,18 @@ export default function App() {
           <div className="md:hidden">
             <div className="flex items-center justify-between gap-3">
               {/* Logo */}
-              <button 
-                onClick={() => {
-                  console.log('Mobile Logo clicked - navigating home');
-                  handleGoHome();
-                }}
-                className="hover:opacity-90 transition-all duration-300 hover:scale-105 text-white font-semibold text-sm leading-tight flex-shrink-0 hover:bg-white/20 hover:shadow-lg rounded-xl px-3 py-2 backdrop-blur-sm border border-white/10 hover:border-white/30"
+              <div 
+                className="text-white font-semibold text-sm leading-tight flex-shrink-0"
               >
                 <div>Locksmith</div>
                 <div>Marketplace</div>
-              </button>
+              </div>
               
               {/* Mobile Search Bar */}
               <div className="relative flex-1 min-w-0">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
-                  placeholder={currentSection === 'marketplace' ? "Search marketplace..." : "Search automotive keys (includes eBay)..."}
+                  placeholder={currentSection === 'marketplace' ? "Search marketplace..." : "Search keys..."}
                   value={currentSection === 'marketplace' ? marketplaceSearch : searchQuery}
                   onChange={(e) => {
                     if (currentSection === 'marketplace') {
@@ -1972,7 +1982,7 @@ export default function App() {
         {/* Messages Page */}
         {currentSection === 'messages' && (
           <MessagesPage 
-            onBack={() => setCurrentSection('retailers')}
+            onBack={() => setCurrentSection('marketplace')}
             onViewProfile={handleViewProfile}
             onViewListings={handleViewUserListings}
             onViewListing={handleViewListing}
@@ -1984,7 +1994,7 @@ export default function App() {
         {currentSection === 'account' && (
           <AccountPage 
             user={user}
-            onBack={() => setCurrentSection('retailers')}
+            onBack={() => setCurrentSection('marketplace')}
             onUpdateUser={handleUpdateUser}
             onViewProfile={handleViewProfile}
             onNavigateToRetailer={() => setCurrentSection('retailer-dashboard')}
@@ -2069,7 +2079,7 @@ export default function App() {
         {currentSection === 'settings' && (
           <SettingsPage
             user={user}
-            onBack={() => setCurrentSection('retailers')}
+            onBack={() => setCurrentSection('marketplace')}
             onUpdateUser={handleUpdateUser}
           />
         )}
@@ -2077,7 +2087,7 @@ export default function App() {
         {/* Admin Page */}
         {currentSection === 'admin' && isAdminUser(user) && (
           <AdminPage
-            onBack={() => setCurrentSection('retailers')}
+            onBack={() => setCurrentSection('marketplace')}
           />
         )}
 
@@ -2096,7 +2106,7 @@ export default function App() {
                 // Clear conversation context since we're not going back to messages
                 setPreviousConversationId(null);
               } else {
-                setCurrentSection('retailers');
+                setCurrentSection('marketplace');
                 setPreviousConversationId(null);
               }
               // Clear the previous section tracking
@@ -2118,7 +2128,7 @@ export default function App() {
         {/* Help & Support Page */}
         {currentSection === 'help' && (
           <HelpSupportPage
-            onBack={() => setCurrentSection('retailers')}
+            onBack={() => setCurrentSection('marketplace')}
           />
         )}
 
@@ -2176,7 +2186,7 @@ export default function App() {
           <SavedItemsPage
             user={user}
             savedItems={savedItems}
-            onBack={() => setCurrentSection('retailers')}
+            onBack={() => setCurrentSection('marketplace')}
             onUnsaveItem={handleUnsaveItem}
             onClearAllSaved={handleClearAllSaved}
           />
@@ -2222,21 +2232,21 @@ export default function App() {
         {/* Contact Page */}
         {currentSection === 'contact' && (
           <ContactPage
-            onBack={() => setCurrentSection('retailers')}
+            onBack={() => setCurrentSection('marketplace')}
           />
         )}
 
         {/* Privacy Policy Page */}
         {currentSection === 'privacy' && (
           <PrivacyPolicyPage
-            onBack={() => setCurrentSection('retailers')}
+            onBack={() => setCurrentSection('marketplace')}
           />
         )}
 
         {/* Terms of Service Page */}
         {currentSection === 'terms' && (
           <TermsOfServicePage
-            onBack={() => setCurrentSection('retailers')}
+            onBack={() => setCurrentSection('marketplace')}
           />
         )}
 
@@ -2470,10 +2480,10 @@ export default function App() {
                       </Button>
                     )}
                     <Button onClick={() => {
-                      console.log('Back to Retailers button clicked');
+                      console.log('Back to Marketplace button clicked');
                       handleGoHome();
                     }} variant="outline">
-                      ← Back to Retailers
+                      ← Back to Marketplace
                     </Button>
                   </div>
                 </div>

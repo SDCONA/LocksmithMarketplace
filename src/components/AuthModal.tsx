@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { User, Mail, Lock, Phone, MapPin, Loader2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { AuthService } from "../utils/auth";
 import { toast } from "sonner";
+import { executeRecaptcha } from "../utils/recaptcha";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -162,7 +163,10 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
     setIsLoading(true);
 
     try {
-      const response = await AuthService.signin(loginForm.email, loginForm.password);
+      // Get reCAPTCHA token
+      const recaptchaToken = await executeRecaptcha('login');
+
+      const response = await AuthService.signin(loginForm.email, loginForm.password, recaptchaToken);
 
       if (response.success && response.user) {
         onLogin(response.user);
@@ -200,6 +204,9 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
     setIsLoading(true);
 
     try {
+      // Get reCAPTCHA token
+      const recaptchaToken = await executeRecaptcha('signup');
+
       const response = await AuthService.signup({
         email: registerForm.email,
         password: registerForm.password,
@@ -208,6 +215,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
         phone: registerForm.phone,
         location: registerForm.location,
         city: registerForm.city,
+        recaptchaToken: recaptchaToken
       });
 
       if (response.success && response.user) {
@@ -309,6 +317,18 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                   'Login'
                 )}
               </Button>
+              
+              <p className="text-xs text-gray-500 text-center">
+                Protected by reCAPTCHA. Google{' '}
+                <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-700">
+                  Privacy Policy
+                </a>{' '}
+                and{' '}
+                <a href="https://policies.google.com/terms" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-700">
+                  Terms of Service
+                </a>{' '}
+                apply.
+              </p>
             </form>
           </TabsContent>
           
@@ -482,6 +502,18 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                   'Create Account'
                 )}
               </Button>
+              
+              <p className="text-xs text-gray-500 text-center">
+                Protected by reCAPTCHA. Google{' '}
+                <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-700">
+                  Privacy Policy
+                </a>{' '}
+                and{' '}
+                <a href="https://policies.google.com/terms" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-700">
+                  Terms of Service
+                </a>{' '}
+                apply.
+              </p>
             </form>
           </TabsContent>
         </Tabs>

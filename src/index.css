@@ -5945,6 +5945,15 @@
   animation: .3s ease-in-out button-pulse;
 }
 
+.grecaptcha-badge {
+  opacity: .8;
+  transition: opacity .2s ease-in-out;
+}
+
+.grecaptcha-badge:hover {
+  opacity: 1;
+}
+
 @property --tw-translate-x {
   syntax: "*";
   inherits: false;

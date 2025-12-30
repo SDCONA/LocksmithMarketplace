@@ -100,3 +100,13 @@
 .animate-button-pulse {
   animation: button-pulse 0.3s ease-in-out;
 }
+
+/* reCAPTCHA badge styling */
+.grecaptcha-badge {
+  opacity: 0.8;
+  transition: opacity 0.2s ease-in-out;
+}
+
+.grecaptcha-badge:hover {
+  opacity: 1;
+}
