@@ -56,7 +56,8 @@ export function AdminPromotionalBanners({ className = '' }: AdminPromotionalBann
       setBanners(sortedBanners);
       setCurrentIndex(0); // Reset to first banner when refetching
     } else {
-      console.error('Failed to fetch promotional banners:', result.error);
+      // Silently fail - banners are optional, just show empty state
+      setBanners([]);
     }
     setIsLoading(false);
   };

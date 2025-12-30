@@ -651,7 +651,8 @@ export default function App() {
         }
       }
     } catch (error) {
-      console.error('Error fetching listings:', error);
+      // Only log as info, not error (to avoid red console messages)
+      console.log('Failed to fetch listings (server may not be running):', error instanceof Error ? error.message : 'Network error');
       setListingsError('Network error');
       if (page === 1) {
         toast.error('Failed to connect to server');

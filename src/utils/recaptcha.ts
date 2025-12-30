@@ -8,7 +8,7 @@ export const RECAPTCHA_SITE_KEY = import.meta.env?.VITE_RECAPTCHA_SITE_KEY || ''
 if (RECAPTCHA_SITE_KEY) {
   console.log('[reCAPTCHA] Site key configured:', RECAPTCHA_SITE_KEY.substring(0, 10) + '...');
 } else {
-  console.warn('[reCAPTCHA] Site key not configured. Set VITE_RECAPTCHA_SITE_KEY in .env file and restart dev server.');
+  console.log('[reCAPTCHA] Running in development mode - reCAPTCHA disabled. To enable, set VITE_RECAPTCHA_SITE_KEY in .env file.');
 }
 
 let isRecaptchaLoaded = false;
@@ -24,7 +24,7 @@ export function loadRecaptchaScript(): Promise<void> {
     }
 
     if (!RECAPTCHA_SITE_KEY) {
-      console.warn('reCAPTCHA site key not configured');
+      // Skip loading if not configured - graceful degradation
       resolve(); // Don't fail, just skip
       return;
     }

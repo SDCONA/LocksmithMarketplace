@@ -54,7 +54,7 @@ export function ArchivedListingsPage({ user, onBack, onViewListing }: ArchivedLi
         }
       }
     } catch (error) {
-      console.error('Error archiving expired listings:', error);
+      // Silently fail - this is a background task that will retry on next page load
     }
   };
 

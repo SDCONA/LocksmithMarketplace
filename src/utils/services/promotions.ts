@@ -49,8 +49,8 @@ export class PromotionService {
 
       return data;
     } catch (error) {
-      console.error('Error fetching promotional banners:', error);
-      return { success: false, error: 'Network error' };
+      // Silently fail - promotional banners are optional
+      return { success: false, error: 'Network error', banners: [] };
     }
   }
 
