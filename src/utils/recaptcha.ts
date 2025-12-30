@@ -1,8 +1,12 @@
 // reCAPTCHA v3 Utility
 // Handles token generation for form submissions
 
-// This will be loaded from the environment
-export const RECAPTCHA_SITE_KEY = import.meta.env?.VITE_RECAPTCHA_SITE_KEY || '';
+// PASTE YOUR RECAPTCHA SITE KEY HERE (replace the empty string)
+// Get it from: https://www.google.com/recaptcha/admin
+const HARDCODED_SITE_KEY = '6LdGWjssAAAAAH5g7mzG4romZvU31tbjdQ2rplMW'; // ← PASTE YOUR SITE KEY HERE (e.g., '6LcXXXXXXXXXXXXXXXXXXXXXXXX')
+
+// This will be loaded from the environment OR use the hardcoded key
+export const RECAPTCHA_SITE_KEY = import.meta.env?.VITE_RECAPTCHA_SITE_KEY || HARDCODED_SITE_KEY;
 
 // Debug logging
 if (RECAPTCHA_SITE_KEY) {
@@ -61,18 +65,22 @@ export function loadRecaptchaScript(): Promise<void> {
  * @returns Promise with the reCAPTCHA token
  */
 export async function executeRecaptcha(action: string): Promise<string> {
+  console.log(`[reCAPTCHA] Executing for action: ${action}`);
+  
   // Ensure reCAPTCHA is loaded first
   await loadRecaptchaScript();
 
   return new Promise((resolve, reject) => {
     // Check if site key is configured
     if (!RECAPTCHA_SITE_KEY) {
+      console.log('[reCAPTCHA] No site key configured - skipping verification');
       resolve(''); // Return empty string if not configured
       return;
     }
 
     // Check if reCAPTCHA is loaded
     if (!window.grecaptcha) {
+      console.warn('[reCAPTCHA] Script not loaded - skipping verification');
       resolve(''); // Return empty string if not loaded
       return;
     }
@@ -82,10 +90,11 @@ export async function executeRecaptcha(action: string): Promise<string> {
       window.grecaptcha
         .execute(RECAPTCHA_SITE_KEY, { action })
         .then((token: string) => {
+          console.log('[reCAPTCHA] Token received successfully');
           resolve(token);
         })
         .catch((error: any) => {
-          console.error('reCAPTCHA execution error:', error);
+          console.error('[reCAPTCHA] Execution error:', error);
           resolve(''); // Return empty string on error instead of rejecting
         });
     });
