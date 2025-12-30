@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { DealsService } from "../utils/services";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "./ui/alert-dialog";
+import { DealModal } from "./DealModal";
 
 interface SavedDealsPageProps {
   onBack: () => void;
@@ -57,6 +58,7 @@ export function SavedDealsPage({ onBack, onAuthRequired }: SavedDealsPageProps) 
   const [selectedDealIds, setSelectedDealIds] = useState<Set<string>>(new Set());
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeletingBulk, setIsDeletingBulk] = useState(false);
+  const [selectedDeal, setSelectedDeal] = useState<Deal | null>(null);
 
   useEffect(() => {
     loadSavedDeals();
@@ -362,7 +364,7 @@ export function SavedDealsPage({ onBack, onAuthRequired }: SavedDealsPageProps) 
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
             {filteredDeals.map((savedDeal) => {
               const deal = savedDeal.deal;
               const isSelected = selectedDealIds.has(savedDeal.id);
@@ -371,127 +373,138 @@ export function SavedDealsPage({ onBack, onAuthRequired }: SavedDealsPageProps) 
                 : null;
 
               return (
-                <Card key={savedDeal.id} className={`overflow-hidden hover:shadow-lg transition-all ${isSelected ? 'ring-2 ring-blue-500' : ''}`}>
+                <Card 
+                  key={savedDeal.id} 
+                  className={`overflow-hidden hover:shadow-lg transition-shadow cursor-pointer ${isSelected ? 'ring-2 ring-blue-500' : ''}`}
+                  onClick={() => setSelectedDeal(deal)}
+                >
                   <CardContent className="p-0">
-                    <div className="flex gap-4 p-4">
-                      {/* Checkbox */}
-                      <div className="flex-shrink-0">
+                    {/* Checkbox overlay */}
+                    <div className="absolute top-2 left-2 z-10">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleSelect(savedDeal.id);
+                        }}
+                        className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors bg-white shadow-md ${
+                          isSelected
+                            ? 'bg-blue-500 border-blue-500'
+                            : 'border-gray-300 hover:border-blue-500'
+                        }`}
+                      >
+                        {isSelected && (
+                          <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+
+                    {/* Image Section */}
+                    {primaryImage && (
+                      <div className="relative bg-gray-100 aspect-video">
+                        <img
+                          src={primaryImage}
+                          alt={deal.title}
+                          className="w-full h-full object-contain"
+                        />
+
+                        {/* Unsave Button */}
                         <button
-                          onClick={() => handleToggleSelect(savedDeal.id)}
-                          className={`w-6 h-6 rounded border-2 flex items-center justify-center transition-colors ${
-                            isSelected
-                              ? 'bg-blue-500 border-blue-500'
-                              : 'border-gray-300 hover:border-blue-500'
-                          }`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleUnsaveDeal(deal.id);
+                          }}
+                          className="absolute top-2 right-2 bg-white p-2 rounded-full shadow-lg hover:scale-110 transition-transform"
+                          title="Remove from saved"
                         >
-                          {isSelected && (
-                            <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                            </svg>
-                          )}
+                          <Heart className="h-5 w-5 fill-red-500 text-red-500" />
                         </button>
+
+                        {/* Discount Badge */}
+                        {deal.original_price && (
+                          <div className="absolute top-2 left-2 bg-red-500 text-white px-2 py-0.5 rounded-full shadow-lg ml-8">
+                            <span className="font-bold text-xs">
+                              {calculateDiscount(deal.price, deal.original_price)}% OFF
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Content Section */}
+                    <div className="p-4">
+                      {/* Retailer Info */}
+                      <div className="flex items-start gap-2 mb-2">
+                        {deal.retailer_profile.logo_url ? (
+                          <img
+                            src={deal.retailer_profile.logo_url}
+                            alt={deal.retailer_profile.company_name}
+                            className="w-6 h-6 rounded object-cover"
+                          />
+                        ) : (
+                          <Store className="h-4 w-4 text-gray-400" />
+                        )}
+                        <span className="text-sm font-medium text-gray-700">
+                          {deal.retailer_profile.company_name}
+                        </span>
                       </div>
 
-                      {/* Image */}
-                      {primaryImage && (
-                        <div className="flex-shrink-0">
-                          <img
-                            src={primaryImage}
-                            alt={deal.title}
-                            className="w-24 h-24 md:w-32 md:h-32 object-cover rounded"
-                          />
-                        </div>
+                      {/* Title */}
+                      <h3 className="font-semibold text-lg mb-2 line-clamp-2">
+                        {deal.title}
+                      </h3>
+
+                      {/* Deal Type */}
+                      {deal.deal_type && (
+                        <Badge
+                          variant="outline"
+                          className="mb-3"
+                          style={{
+                            borderColor: deal.deal_type.color,
+                            color: deal.deal_type.color,
+                          }}
+                        >
+                          {deal.deal_type.name}
+                        </Badge>
                       )}
 
-                      {/* Content */}
-                      <div className="flex-1 min-w-0">
-                        {/* Retailer */}
-                        <div className="flex items-center gap-2 mb-2">
-                          {deal.retailer_profile.logo_url ? (
-                            <img
-                              src={deal.retailer_profile.logo_url}
-                              alt={deal.retailer_profile.company_name}
-                              className="w-5 h-5 rounded object-cover"
-                            />
-                          ) : (
-                            <Store className="h-4 w-4 text-gray-400" />
-                          )}
-                          <span className="text-sm font-medium text-gray-700">
-                            {deal.retailer_profile.company_name}
+                      {/* Price Section */}
+                      <div className="flex items-baseline gap-2 mb-3">
+                        <span className="text-3xl font-bold text-green-600">
+                          ${deal.price.toFixed(2)}
+                        </span>
+                        {deal.original_price && (
+                          <span className="text-sm text-gray-400 line-through">
+                            ${deal.original_price.toFixed(2)}
                           </span>
-                        </div>
-
-                        {/* Title */}
-                        <h3 className="font-semibold text-lg mb-2 line-clamp-2">
-                          {deal.title}
-                        </h3>
-
-                        {/* Deal Type */}
-                        {deal.deal_type && (
-                          <Badge
-                            variant="outline"
-                            className="mb-2"
-                            style={{
-                              borderColor: deal.deal_type.color,
-                              color: deal.deal_type.color,
-                            }}
-                          >
-                            {deal.deal_type.name}
-                          </Badge>
                         )}
-
-                        {/* Price */}
-                        <div className="flex items-baseline gap-2 mb-2">
-                          <span className="text-2xl font-bold text-green-600">
-                            ${deal.price.toFixed(2)}
-                          </span>
-                          {deal.original_price && (
-                            <>
-                              <span className="text-lg text-gray-400 line-through">
-                                ${deal.original_price.toFixed(2)}
-                              </span>
-                              <Badge variant="destructive" className="text-xs">
-                                {calculateDiscount(deal.price, deal.original_price)}% OFF
-                              </Badge>
-                            </>
-                          )}
-                        </div>
-
-                        {/* Time & Saved Date */}
-                        <div className="flex flex-wrap items-center gap-3 text-sm mb-3">
-                          <div className="flex items-center gap-1 text-orange-600">
-                            <Clock className="h-4 w-4" />
-                            <span className="font-medium">{formatTimeRemaining(deal.expires_at)}</span>
-                          </div>
-                          <span className="text-gray-500">•</span>
-                          <span className="text-gray-600">
-                            Saved {formatDate(savedDeal.created_at)}
-                          </span>
-                        </div>
-
-                        {/* Actions */}
-                        <div className="flex gap-2">
-                          <a
-                            href={deal.external_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex-1"
-                          >
-                            <Button size="sm" className="w-full">
-                              View Deal
-                              <ExternalLink className="h-4 w-4 ml-2" />
-                            </Button>
-                          </a>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => handleUnsaveDeal(deal.id)}
-                            title="Remove from saved"
-                          >
-                            <Heart className="h-4 w-4 fill-red-500 text-red-500" />
-                          </Button>
-                        </div>
                       </div>
+
+                      {/* Time Remaining */}
+                      <div className="flex items-center gap-1 text-sm text-orange-600 mb-2">
+                        <Clock className="h-4 w-4" />
+                        <span className="font-medium">{formatTimeRemaining(deal.expires_at)}</span>
+                      </div>
+
+                      {/* Saved Date */}
+                      <div className="text-xs text-gray-500 mb-3">
+                        Saved {formatDate(savedDeal.created_at)}
+                      </div>
+
+                      {/* View Deal Button */}
+                      <a
+                        href={deal.external_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Button size="sm" className="w-full">
+                          View Deal
+                          <ExternalLink className="h-4 w-4 ml-2" />
+                        </Button>
+                      </a>
                     </div>
                   </CardContent>
                 </Card>
@@ -523,6 +536,19 @@ export function SavedDealsPage({ onBack, onAuthRequired }: SavedDealsPageProps) 
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Deal Modal */}
+      {selectedDeal && (
+        <DealModal
+          deal={selectedDeal}
+          isSaved={true}
+          onSave={handleUnsaveDeal}
+          onClose={() => setSelectedDeal(null)}
+          formatTimeRemaining={formatTimeRemaining}
+          calculateDiscount={calculateDiscount}
+          isLoggedIn={true}
+        />
+      )}
     </div>
   );
 }

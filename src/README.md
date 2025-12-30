@@ -11,6 +11,7 @@ A comprehensive automotive key search and marketplace platform with user registr
 - 🛡️ **Admin Panel** - Full CRUD functionality and content moderation
 - 🏪 **Retailer Deals** - Retailer profiles, deal management, and CSV bulk upload
 - 📊 **Reports System** - Content reporting and moderation tools
+- 🔒 **Security Testing Suite** - Comprehensive automated security verification
 - 📱 **Responsive Design** - Mobile-first design with beautiful UI
 
 ## Tech Stack

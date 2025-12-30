@@ -234,7 +234,7 @@ export class DealsService {
   static async getDeals() {
     const token = await AuthService.getFreshToken();
     if (!token) throw new Error("Authentication required");
-    const response = await fetch(`${API_URL}/deals`, {
+    const response = await fetch(`${API_URL}`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -268,7 +268,7 @@ export class DealsService {
 
   static async getDeal(id: string) {
     const token = await AuthService.getFreshToken();
-    const response = await fetch(`${API_URL}/deals/${id}`, {
+    const response = await fetch(`${API_URL}/${id}`, {
       headers: {
         Authorization: `Bearer ${token || publicAnonKey}`,
       },
@@ -286,7 +286,7 @@ export class DealsService {
   static async createDeal(dealData: any) {
     const token = await AuthService.getFreshToken();
     if (!token) throw new Error("Authentication required");
-    const response = await fetch(`${API_URL}/deals`, {
+    const response = await fetch(`${API_URL}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -316,7 +316,7 @@ export class DealsService {
   static async updateDeal(id: string, dealData: any) {
     const token = await AuthService.getFreshToken();
     if (!token) throw new Error("Authentication required");
-    const response = await fetch(`${API_URL}/deals/${id}`, {
+    const response = await fetch(`${API_URL}/${id}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
@@ -337,7 +337,7 @@ export class DealsService {
   static async deleteDeal(id: string) {
     const token = await AuthService.getFreshToken();
     if (!token) throw new Error("Authentication required");
-    const response = await fetch(`${API_URL}/deals/${id}`, {
+    const response = await fetch(`${API_URL}/${id}`, {
       method: "DELETE",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -355,7 +355,7 @@ export class DealsService {
   static async archiveDeal(id: string) {
     const token = await AuthService.getFreshToken();
     if (!token) throw new Error("Authentication required");
-    const response = await fetch(`${API_URL}/deals/${id}/archive`, {
+    const response = await fetch(`${API_URL}/${id}/archive`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -374,7 +374,7 @@ export class DealsService {
   static async restoreDeal(id: string, expiresAt: string) {
     const token = await AuthService.getFreshToken();
     if (!token) throw new Error("Authentication required");
-    const response = await fetch(`${API_URL}/deals/${id}/restore`, {
+    const response = await fetch(`${API_URL}/${id}/restore`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -395,7 +395,7 @@ export class DealsService {
   static async pauseDeal(id: string) {
     const token = await AuthService.getFreshToken();
     if (!token) throw new Error("Authentication required");
-    const response = await fetch(`${API_URL}/deals/${id}/pause`, {
+    const response = await fetch(`${API_URL}/${id}/pause`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -414,7 +414,7 @@ export class DealsService {
   static async activateDeal(id: string) {
     const token = await AuthService.getFreshToken();
     if (!token) throw new Error("Authentication required");
-    const response = await fetch(`${API_URL}/deals/${id}/activate`, {
+    const response = await fetch(`${API_URL}/${id}/activate`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -437,7 +437,7 @@ export class DealsService {
   static async uploadDealImage(dealId: string, imageUrl: string, displayOrder: number = 0) {
     const token = await AuthService.getFreshToken();
     if (!token) throw new Error("Authentication required");
-    const response = await fetch(`${API_URL}/deals/${dealId}/images`, {
+    const response = await fetch(`${API_URL}/${dealId}/images`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -468,7 +468,7 @@ export class DealsService {
     formData.append("file", file);
     formData.append("display_order", displayOrder.toString());
 
-    const response = await fetch(`${API_URL}/deals/${dealId}/images/upload`, {
+    const response = await fetch(`${API_URL}/${dealId}/images/upload`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -506,7 +506,7 @@ export class DealsService {
   static async reorderDealImages(dealId: string, imageOrders: Array<{ id: string; display_order: number }>) {
     const token = await AuthService.getFreshToken();
     if (!token) throw new Error("Authentication required");
-    const response = await fetch(`${API_URL}/deals/${dealId}/images/reorder`, {
+    const response = await fetch(`${API_URL}/${dealId}/images/reorder`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
@@ -562,25 +562,42 @@ export class DealsService {
 
   // Multi-source search (database + external APIs like eBay)
   static async searchDeals(searchQuery: string = "", excludedRetailers: string[] = [], includeExternal: boolean = true) {
+    console.log('=== DEALS SERVICE SEARCH START ===');
+    console.log('Search query:', searchQuery);
+    console.log('Excluded retailers:', excludedRetailers);
+    console.log('Include external (eBay):', includeExternal);
+    
     const params = new URLSearchParams();
     if (searchQuery) params.append('q', searchQuery);
     if (excludedRetailers.length > 0) params.append('exclude', excludedRetailers.join(','));
     if (!includeExternal) params.append('includeExternal', 'false');
     
     const queryString = params.toString() ? `?${params.toString()}` : '';
+    const fullUrl = `${API_URL}/public/search${queryString}`;
     
-    const response = await fetch(`${API_URL}/public/search${queryString}`, {
+    console.log('Calling URL:', fullUrl);
+    
+    const response = await fetch(fullUrl, {
       headers: {
         Authorization: `Bearer ${publicAnonKey}`,
       },
     });
 
+    console.log('Response status:', response.status);
+    console.log('Response OK:', response.ok);
+
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || "Failed to search deals");
+      const text = await response.text();
+      console.error('Search API error response:', text);
+      throw new Error(text || "Failed to search deals");
     }
 
     const data = await response.json();
+    console.log('Search API response:', data);
+    console.log('Number of deals:', data.deals?.length || 0);
+    console.log('Sources:', data.sources);
+    console.log('=== DEALS SERVICE SEARCH END ===');
+    
     return data; // Returns { deals, sources }
   }
 
@@ -609,7 +626,7 @@ export class DealsService {
 
   static async saveDeal(dealId: string) {
     const token = await AuthService.getFreshToken();
-    const response = await fetch(`${API_URL}/deals/${dealId}/save`, {
+    const response = await fetch(`${API_URL}/${dealId}/save`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -627,7 +644,7 @@ export class DealsService {
 
   static async unsaveDeal(dealId: string) {
     const token = await AuthService.getFreshToken();
-    const response = await fetch(`${API_URL}/deals/${dealId}/save`, {
+    const response = await fetch(`${API_URL}/${dealId}/save`, {
       method: "DELETE",
       headers: {
         Authorization: `Bearer ${token}`,
@@ -665,7 +682,7 @@ export class DealsService {
     const token = await AuthService.getFreshToken();
     if (!token) return false;
 
-    const response = await fetch(`${API_URL}/deals/${dealId}/is-saved`, {
+    const response = await fetch(`${API_URL}/${dealId}/is-saved`, {
       headers: {
         Authorization: `Bearer ${token}`,
       },
@@ -686,7 +703,7 @@ export class DealsService {
   static async bulkUploadDeals(deals: any[]) {
     const token = await AuthService.getFreshToken();
     if (!token) throw new Error("Authentication required");
-    const response = await fetch(`${API_URL}/deals/bulk-upload`, {
+    const response = await fetch(`${API_URL}/bulk-upload`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

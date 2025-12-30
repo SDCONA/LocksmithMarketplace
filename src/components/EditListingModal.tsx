@@ -11,6 +11,7 @@ import { ImageWithFallback } from "./figma/ImageWithFallback";
 import { createClient } from "../utils/supabase/client";
 import { projectId } from "../utils/supabase/info";
 import { toast } from "sonner";
+import { StatePersistence } from "../utils/statePersistence";
 import { 
   Upload, 
   X, 
@@ -55,7 +56,10 @@ export function EditListingModal({
   // Initialize form with listing data when modal opens
   useEffect(() => {
     if (listing && isOpen) {
-      setFormData({
+      // Check for saved form data first
+      const savedForm = StatePersistence.getFormState(`editListing-${listing.id}`);
+      
+      setFormData(savedForm || {
         title: listing.title || "",
         description: listing.description || "",
         price: listing.price?.toString() || "",
@@ -67,13 +71,21 @@ export function EditListingModal({
     }
   }, [listing, isOpen]);
 
+  // Persist form data on changes
+  useEffect(() => {
+    if (isOpen && listing) {
+      StatePersistence.saveFormState(`editListing-${listing.id}`, formData);
+    }
+  }, [formData, isOpen, listing]);
+
   const categories = [
     "Car Keys & Remotes",
     "Key Programming Tools", 
     "Locksmith Tools",
     "Transponder Keys",
-    "Key Blanks",
     "Security Systems",
+    "Cutting Maschines",
+    "Business for sale",
     "Access Control",
     "Other"
   ];
@@ -97,9 +109,20 @@ export function EditListingModal({
   };
 
   const handleImageUpload = async (files: FileList) => {
-    if (formData.images.length >= 10) {
-      toast.error('Maximum 10 images allowed');
+    if (!files || files.length === 0) return;
+
+    // Calculate how many images we can still add (max 10 total)
+    const availableSlots = 10 - formData.images.length;
+    if (availableSlots === 0) {
+      toast.error('Maximum of 10 images reached');
       return;
+    }
+
+    // Get the files to upload (limited by available slots)
+    const filesToUpload = Array.from(files).slice(0, availableSlots);
+    
+    if (filesToUpload.length < files.length) {
+      toast.info(`Only uploading ${filesToUpload.length} images (maximum of 10 total)`);
     }
 
     setIsUploading(true);
@@ -107,7 +130,9 @@ export function EditListingModal({
     try {
       const supabase = createClient();
       const accessToken = await supabase.auth.getSession().then(res => res.data.session?.access_token);
-      const uploadPromises = Array.from(files).slice(0, 10 - formData.images.length).map(async (file) => {
+      
+      // Upload all files in parallel
+      const uploadPromises = filesToUpload.map(async (file) => {
         const uploadFormData = new FormData();
         uploadFormData.append('file', file);
 
@@ -123,26 +148,29 @@ export function EditListingModal({
         );
 
         const data = await response.json();
-        
-        if (data.success) {
-          return data.url;
-        } else {
-          console.error('Failed to upload image:', data.error);
-          return null;
-        }
+        return data;
       });
 
-      const uploadedUrls = await Promise.all(uploadPromises);
-      const validUrls = uploadedUrls.filter(url => url !== null) as string[];
+      const results = await Promise.all(uploadPromises);
       
-      if (validUrls.length > 0) {
+      // Filter successful uploads
+      const successfulUrls = results
+        .filter(result => result.success)
+        .map(result => result.url);
+      
+      const failedCount = results.length - successfulUrls.length;
+
+      if (successfulUrls.length > 0) {
         setFormData(prev => ({
           ...prev,
-          images: [...prev.images, ...validUrls].slice(0, 10) // Max 10 images
+          images: [...prev.images, ...successfulUrls]
         }));
-        toast.success(`${validUrls.length} image(s) uploaded successfully`);
-      } else {
-        toast.error('Failed to upload images');
+        toast.success(`${successfulUrls.length} image${successfulUrls.length > 1 ? 's' : ''} uploaded successfully`);
+      }
+      
+      if (failedCount > 0) {
+        console.error('Some images failed to upload');
+        toast.error(`${failedCount} image${failedCount > 1 ? 's' : ''} failed to upload`);
       }
     } catch (error) {
       console.error('Error uploading images:', error);
@@ -183,7 +211,7 @@ export function EditListingModal({
     e.preventDefault();
     
     if (!formData.title || !formData.description || !formData.price || !formData.category) {
-      alert("Please fill in all required fields");
+      toast.error("Please fill in all required fields");
       return;
     }
 
@@ -195,12 +223,20 @@ export function EditListingModal({
     };
 
     onUpdateListing(updatedListing);
+    
+    // Clear saved form data on successful save
+    StatePersistence.clearFormState(`editListing-${listing.id}`);
+    
     onClose();
   };
 
   const handleDelete = () => {
     if (confirm("Are you sure you want to delete this listing? This action cannot be undone.")) {
       onDeleteListing(listing.id);
+      
+      // Clear saved form data on delete
+      StatePersistence.clearFormState(`editListing-${listing.id}`);
+      
       onClose();
     }
   };

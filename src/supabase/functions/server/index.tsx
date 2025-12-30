@@ -1,10 +1,9 @@
 import { Hono } from "npm:hono";
 import { cors } from "npm:hono/cors";
 import { logger } from "npm:hono/logger";
-// REMOVED: kv_store - we have proper database tables now!
-import { parseKey4Products } from "./key4-parser.tsx";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import dealsApp from "./deals-routes.tsx";
+import { sendAdminWarning } from "./admin-warning-helper.tsx";
 
 const app = new Hono();
 
@@ -45,7 +44,20 @@ async function verifyUser(authHeader: string | null) {
   return { user, error: null };
 }
 
-// Verify admin user (checks JWT metadata)
+// Check if user is admin (uses secure admin table)
+async function isUserAdmin(userId: string): Promise<boolean> {
+  const supabaseAdmin = getSupabaseAdmin();
+  
+  const { data, error } = await supabaseAdmin
+    .from('admins_a7e285ba')
+    .select('user_id')
+    .eq('user_id', userId)
+    .maybeSingle();
+  
+  return !error && !!data;
+}
+
+// Verify admin user (checks secure admin table)
 async function verifyAdmin(authHeader: string | null) {
   const { user, error } = await verifyUser(authHeader);
   
@@ -53,12 +65,11 @@ async function verifyAdmin(authHeader: string | null) {
     return { user: null, error: error || 'Unauthorized' };
   }
   
-  // Check if user has admin role in user_metadata (support both formats)
-  const isAdmin = user.user_metadata?.role === 'admin' || 
-                  user.user_metadata?.is_admin === true;
+  // Check if user is in the secure admin table
+  const isAdmin = await isUserAdmin(user.id);
   
   if (!isAdmin) {
-    console.log(`Admin access denied for user ${user.id} - metadata:`, user.user_metadata);
+    console.log(`Admin access denied for user ${user.id} - not in admin table`);
     return { user: null, error: 'Admin access required' };
   }
   
@@ -176,46 +187,7 @@ app.get("/make-server-a7e285ba/diagnostic", (c) => {
   });
 });
 
-// Product search endpoint - scrapes Key4.com
-app.post("/make-server-a7e285ba/search-products", async (c) => {
-  try {
-    const body = await c.req.json();
-    const { query, retailer } = body;
 
-    if (!query) {
-      return c.json({ error: "Search query is required" }, 400);
-    }
-
-    console.log(`Product search request - Query: ${query}, Retailer: ${retailer || 'all'}`);
-
-    // Parse products from Key4.com directly (no caching needed)
-    let products = [];
-    
-    if (!retailer || retailer === 'key4') {
-      try {
-        products = await parseKey4Products(query);
-        console.log(`Successfully parsed ${products.length} products from Key4.com`);
-      } catch (error) {
-        console.error(`Error parsing Key4.com: ${error}`);
-        // Continue even if parsing fails
-      }
-    }
-
-    return c.json({ 
-      success: true, 
-      products,
-      retailer: 'key4.com',
-      count: products.length
-    });
-
-  } catch (error) {
-    console.error(`Error in product search endpoint: ${error}`);
-    return c.json({ 
-      error: "Failed to search products", 
-      message: error instanceof Error ? error.message : String(error)
-    }, 500);
-  }
-});
 
 // ============================================
 // AUTHENTICATION ROUTES
@@ -382,7 +354,16 @@ app.post("/make-server-a7e285ba/auth/signin", async (c) => {
 
     if (error) {
       console.error(`Sign in error for ${email}: ${error.message}`, error);
-      return c.json({ error: error.message }, 401);
+      
+      // Provide user-friendly error message
+      let userMessage = error.message;
+      if (error.message.includes('Invalid login credentials') || error.message.includes('invalid_credentials')) {
+        userMessage = 'Invalid email or password. Please check your credentials and try again.';
+      } else if (error.message.includes('Email not confirmed')) {
+        userMessage = 'Please verify your email address before signing in.';
+      }
+      
+      return c.json({ error: userMessage }, 401);
     }
 
     if (!data.session || !data.user) {
@@ -409,9 +390,8 @@ app.post("/make-server-a7e285ba/auth/signin", async (c) => {
       return c.json({ error: "Profile not found" }, 404);
     }
 
-    // Check admin status from JWT metadata
-    const isAdmin = data.user.user_metadata?.role === 'admin' || 
-                    data.user.user_metadata?.is_admin === true;
+    // Check admin status from secure admin table
+    const isAdmin = await isUserAdmin(data.user.id);
 
     return c.json({
       success: true,
@@ -502,9 +482,8 @@ app.get("/make-server-a7e285ba/auth/me", async (c) => {
         return c.json({ error: "Failed to create profile" }, 500);
       }
 
-      // Check admin status from JWT metadata
-      const isAdmin = user.user_metadata?.role === 'admin' || 
-                      user.user_metadata?.is_admin === true;
+      // Check admin status from secure admin table
+      const isAdmin = await isUserAdmin(user.id);
 
       return c.json({
         success: true,
@@ -533,9 +512,8 @@ app.get("/make-server-a7e285ba/auth/me", async (c) => {
       });
     }
 
-    // Check admin status from JWT metadata (BizDizy pattern)
-    const isAdmin = user.user_metadata?.role === 'admin' || 
-                    user.user_metadata?.is_admin === true;
+    // Check admin status from secure admin table
+    const isAdmin = await isUserAdmin(user.id);
 
     return c.json({
       success: true,
@@ -1496,6 +1474,12 @@ app.get("/make-server-a7e285ba/listings/:id", async (c) => {
       return c.json({ error: "Listing not found" }, 404);
     }
 
+    // SECURITY FIX: Respect phone_public privacy setting
+    if (listing.user_profiles && !listing.user_profiles.phone_public) {
+      // Hide phone number if seller hasn't made it public
+      listing.user_profiles.phone = null;
+    }
+
     // Increment view count and get updated listing
     const newViewCount = (listing.views || 0) + 1;
     const { error: updateError } = await supabaseAdmin
@@ -1647,6 +1631,61 @@ app.put("/make-server-a7e285ba/listings/:id", async (c) => {
   } catch (error) {
     console.error(`Error updating listing: ${error}`);
     return c.json({ error: "Failed to update listing" }, 500);
+  }
+});
+
+// Archive listing (requires auth and ownership)
+app.put("/make-server-a7e285ba/listings/:id/archive", async (c) => {
+  try {
+    const authHeader = c.req.header('Authorization');
+    const { user, error: authError } = await verifyUser(authHeader);
+
+    if (authError || !user) {
+      console.error('❌ [ARCHIVE] Auth error:', authError);
+      return c.json({ error: authError || "Unauthorized" }, 401);
+    }
+
+    const id = c.req.param('id');
+    const supabaseAdmin = getSupabaseAdmin();
+
+    // Check ownership
+    const { data: existing } = await supabaseAdmin
+      .from('marketplace_listings')
+      .select('seller_id, status')
+      .eq('id', id)
+      .single();
+
+    if (!existing) {
+      console.error(`❌ [ARCHIVE] Listing ${id} not found`);
+      return c.json({ error: "Listing not found" }, 404);
+    }
+
+    if (existing.seller_id !== user.id) {
+      console.error(`❌ [ARCHIVE] User ${user.id} not authorized to archive listing ${id}`);
+      return c.json({ error: "Unauthorized to archive this listing" }, 403);
+    }
+
+    // Update status to archived and set archived_at timestamp
+    const { data: listing, error } = await supabaseAdmin
+      .from('marketplace_listings')
+      .update({ 
+        status: 'archived',
+        archived_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error(`❌ [ARCHIVE] Database error archiving listing ${id}:`, error.message);
+      return c.json({ error: error.message }, 400);
+    }
+
+    console.log(`✅ [ARCHIVE] Successfully archived listing ${id} for user ${user.id}`);
+    return c.json({ success: true, listing });
+  } catch (error) {
+    console.error(`❌ [ARCHIVE] Unexpected error:`, error);
+    return c.json({ error: "Failed to archive listing" }, 500);
   }
 });
 
@@ -1820,6 +1859,61 @@ app.post("/make-server-a7e285ba/listings/:id/archive", async (c) => {
   } catch (error) {
     console.error(`Error archiving listing: ${error}`);
     return c.json({ error: "Failed to archive listing" }, 500);
+  }
+});
+
+// Unarchive a listing (renew - requires auth and ownership)
+app.put("/make-server-a7e285ba/listings/:id/unarchive", async (c) => {
+  try {
+    const authHeader = c.req.header('Authorization');
+    const { user, error: authError } = await verifyUser(authHeader);
+
+    if (authError || !user) {
+      return c.json({ error: authError || "Unauthorized" }, 401);
+    }
+
+    const id = c.req.param('id');
+    const supabaseAdmin = getSupabaseAdmin();
+
+    // Check ownership and archived status
+    const { data: existing } = await supabaseAdmin
+      .from('marketplace_listings')
+      .select('seller_id, status')
+      .eq('id', id)
+      .single();
+
+    if (!existing || existing.seller_id !== user.id) {
+      return c.json({ error: "Unauthorized to unarchive this listing" }, 403);
+    }
+
+    if (existing.status !== 'archived') {
+      return c.json({ error: "Only archived listings can be unarchived" }, 400);
+    }
+
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days from now
+
+    const { data: listing, error } = await supabaseAdmin
+      .from('marketplace_listings')
+      .update({
+        status: 'active',
+        created_at: now.toISOString(),
+        expires_at: expiresAt.toISOString(),
+        archived_at: null
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error(`Error unarchiving listing: ${error.message}`);
+      return c.json({ error: error.message }, 400);
+    }
+
+    return c.json({ success: true, listing });
+  } catch (error) {
+    console.error(`Error unarchiving listing: ${error}`);
+    return c.json({ error: "Failed to unarchive listing" }, 500);
   }
 });
 
@@ -2006,22 +2100,39 @@ app.get("/make-server-a7e285ba/messages/unread-count", async (c) => {
 
     const supabaseAdmin = getSupabaseAdmin();
 
-    // Get all conversations for this user
-    const { data: conversations, error: convError } = await supabaseAdmin
+    // Get regular conversations for this user (not admin warnings)
+    const { data: regularConversations, error: convError } = await supabaseAdmin
       .from('conversations')
       .select('id')
-      .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`);
+      .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
+      .neq('is_admin_warning', true);
 
     if (convError) {
       console.error(`Error fetching user conversations: ${convError.message}`);
       return c.json({ error: convError.message }, 400);
     }
 
-    if (!conversations || conversations.length === 0) {
+    // Get admin warning conversations for this user (only if both buyer and seller are the user)
+    const { data: adminConversations, error: adminConvError } = await supabaseAdmin
+      .from('conversations')
+      .select('id')
+      .eq('buyer_id', user.id)
+      .eq('seller_id', user.id)
+      .eq('is_admin_warning', true);
+
+    if (adminConvError) {
+      console.error(`Error fetching admin warning conversations: ${adminConvError.message}`);
+      return c.json({ error: adminConvError.message }, 400);
+    }
+
+    // Combine both types of conversations
+    const allConversations = [...(regularConversations || []), ...(adminConversations || [])];
+
+    if (!allConversations || allConversations.length === 0) {
       return c.json({ success: true, count: 0 });
     }
 
-    const conversationIds = conversations.map(c => c.id);
+    const conversationIds = allConversations.map(c => c.id);
 
     // Count unread messages where user is NOT the sender
     const { count, error } = await supabaseAdmin
@@ -2040,6 +2151,35 @@ app.get("/make-server-a7e285ba/messages/unread-count", async (c) => {
   } catch (error) {
     console.error(`Error counting unread messages: ${error}`);
     return c.json({ error: "Failed to count unread messages" }, 500);
+  }
+});
+
+// DEBUG: Get all admin warning conversations in database
+app.get("/make-server-a7e285ba/debug/admin-warnings", async (c) => {
+  try {
+    const authHeader = c.req.header('Authorization');
+    const { user, error: authError } = await verifyAdmin(authHeader);
+
+    if (authError || !user) {
+      return c.json({ error: authError || "Admin access required" }, 403);
+    }
+
+    const supabaseAdmin = getSupabaseAdmin();
+
+    const { data: allAdminWarnings, error } = await supabaseAdmin
+      .from('conversations')
+      .select('id, buyer_id, seller_id, is_admin_warning, listing_id, created_at, last_message_at')
+      .eq('is_admin_warning', true)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      return c.json({ error: error.message }, 400);
+    }
+
+    return c.json({ success: true, admin_warnings: allAdminWarnings || [], count: allAdminWarnings?.length || 0 });
+  } catch (error) {
+    console.error(`Error fetching admin warnings debug info: ${error}`);
+    return c.json({ error: "Failed to fetch debug info" }, 500);
   }
 });
 
@@ -2063,16 +2203,32 @@ app.get("/make-server-a7e285ba/conversations", async (c) => {
 
     const deletedConvIds = (deletedConvs || []).map(d => d.conversation_id);
 
-    // Fetch conversations, excluding deleted ones
+    // DEBUG: Check if any admin conversations exist for this user
+    const { data: adminConvs } = await supabaseAdmin
+      .from('conversations')
+      .select('*')
+      .eq('buyer_id', user.id)
+      .eq('seller_id', user.id)
+      .eq('is_admin_warning', true);
+    console.log(`🔍 DEBUG: Found ${adminConvs?.length || 0} admin conversations in raw query for user ${user.id}`);
+    if (adminConvs && adminConvs.length > 0) {
+      adminConvs.forEach(conv => {
+        console.log(`  - Admin Conv ${conv.id}: is_admin_warning=${conv.is_admin_warning}, created=${conv.created_at}`);
+      });
+    }
+
+    // Fetch regular conversations (not admin warnings)
+    // Admin warning conversations are handled separately below
+    // IMPORTANT: Filter out admin warnings explicitly (both null and false are OK, true is not)
     let query = supabaseAdmin
       .from('conversations')
       .select(`
         *,
         buyer:user_profiles!conversations_buyer_id_fkey(id, first_name, last_name, avatar_url),
-        seller:user_profiles!conversations_seller_id_fkey(id, first_name, last_name, avatar_url),
         listing:marketplace_listings(id, title, price, images)
       `)
       .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
+      .not('is_admin_warning', 'eq', true) // Explicitly exclude where is_admin_warning = true
       .order('last_message_at', { ascending: false });
 
     // Exclude deleted conversations
@@ -2080,31 +2236,103 @@ app.get("/make-server-a7e285ba/conversations", async (c) => {
       query = query.not('id', 'in', `(${deletedConvIds.join(',')})`);
     }
 
-    const { data: conversations, error } = await query;
+    const { data: regularConversations, error } = await query;
 
     if (error) {
-      console.error(`Error fetching conversations: ${error.message}`);
+      console.error(`Error fetching regular conversations: ${error.message}`);
       return c.json({ error: error.message }, 400);
     }
 
-    // Calculate unread count for each conversation
+    console.log(`✅ Fetched ${regularConversations?.length || 0} REGULAR conversations for user ${user.id}`);
+    if (regularConversations && regularConversations.length > 0) {
+      regularConversations.forEach(conv => {
+        console.log(`  - Regular Conv ${conv.id}: buyer=${conv.buyer_id}, seller=${conv.seller_id}, is_admin_warning=${conv.is_admin_warning}, listing=${conv.listing_id}`);
+      });
+    }
+
+    // Fetch admin warning conversations - ONLY for the warned user
+    // Admin warnings have buyer_id = seller_id = warned user
+    let adminQuery = supabaseAdmin
+      .from('conversations')
+      .select(`
+        *,
+        buyer:user_profiles!conversations_buyer_id_fkey(id, first_name, last_name, avatar_url),
+        listing:marketplace_listings(id, title, price, images)
+      `)
+      .eq('buyer_id', user.id)
+      .eq('seller_id', user.id)
+      .eq('is_admin_warning', true)
+      .order('last_message_at', { ascending: false });
+
+    // Exclude deleted admin conversations
+    if (deletedConvIds.length > 0) {
+      adminQuery = adminQuery.not('id', 'in', `(${deletedConvIds.join(',')})`);
+    }
+
+    const { data: adminConversations, error: adminError } = await adminQuery;
+
+    if (adminError) {
+      console.error(`Error fetching admin warning conversations: ${adminError.message}`);
+      return c.json({ error: adminError.message }, 400);
+    }
+
+    console.log(`✅ Fetched ${adminConversations?.length || 0} ADMIN WARNING conversations for user ${user.id}`);
+    if (adminConversations && adminConversations.length > 0) {
+      adminConversations.forEach(conv => {
+        console.log(`  - Admin Warning Conv ${conv.id}: buyer=${conv.buyer_id}, seller=${conv.seller_id}, is_admin_warning=${conv.is_admin_warning}`);
+      });
+    }
+
+    // REMOVED: Admin warning conversations - they are now handled via /notifications route
+    // Use only regular conversations (no admin warnings)
+    const conversations = regularConversations || [];
+
+    console.log(`🔍 DEBUG: Fetched ${conversations.length} conversations for user ${user.id} (admin warnings excluded)`);
+
+    // Fetch seller profiles for conversations
+    const sellerIds = (conversations || [])
+      .map(c => c.seller_id)
+      .filter(id => id !== null);
+    
+    let sellerProfiles = {};
+    if (sellerIds.length > 0) {
+      const { data: sellers } = await supabaseAdmin
+        .from('user_profiles')
+        .select('id, first_name, last_name, avatar_url')
+        .in('id', sellerIds);
+      
+      sellerProfiles = (sellers || []).reduce((acc, seller) => {
+        acc[seller.id] = seller;
+        return acc;
+      }, {});
+    }
+
+    // Calculate unread count for each conversation and attach seller profile
     const conversationsWithUnread = await Promise.all(
       (conversations || []).map(async (conv) => {
-        const { count } = await supabaseAdmin
+        // For admin warnings, sender_id is null, so we need special handling
+        let countQuery = supabaseAdmin
           .from('messages')
           .select('id', { count: 'exact', head: true })
           .eq('conversation_id', conv.id)
-          .eq('is_read', false)
-          .neq('sender_id', user.id);
+          .eq('is_read', false);
+        
+        // Only exclude messages from the current user if not an admin warning
+        if (!conv.is_admin_warning) {
+          countQuery = countQuery.neq('sender_id', user.id);
+        }
+        
+        const { count } = await countQuery;
         
         return {
           ...conv,
+          seller: conv.is_admin_warning ? null : sellerProfiles[conv.seller_id],
           unread_count: count || 0
         };
       })
     );
 
-    return c.json({ success: true, conversations: conversationsWithUnread });
+    return c.json({ success: true, conversations: conversationsWithUnread, currentUserId: user.id });
   } catch (error) {
     console.error(`Error fetching conversations: ${error}`);
     return c.json({ error: "Failed to fetch conversations" }, 500);
@@ -2313,6 +2541,8 @@ app.get("/make-server-a7e285ba/conversations/:id/messages", async (c) => {
     }
 
     const conversationId = c.req.param('id');
+    const limit = parseInt(c.req.query('limit') || '10');
+    const before = c.req.query('before'); // Message ID to load before (for pagination)
     const supabaseAdmin = getSupabaseAdmin();
 
     // Verify user is part of conversation
@@ -2329,17 +2559,33 @@ app.get("/make-server-a7e285ba/conversations/:id/messages", async (c) => {
       return c.json({ error: "Unauthorized" }, 403);
     }
 
-    // Fetch messages
+    // Fetch messages with pagination
     const msgStart = Date.now();
-    const { data: messages, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from('messages')
       .select(`
         *,
         sender:user_profiles!messages_sender_id_fkey(id, first_name, last_name, avatar_url)
       `)
       .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: true })
-      .limit(100);
+      .order('created_at', { ascending: false }); // Descending to get latest messages first
+    
+    // If 'before' is provided, only get messages before that message's created_at
+    if (before) {
+      const { data: beforeMsg } = await supabaseAdmin
+        .from('messages')
+        .select('created_at')
+        .eq('id', before)
+        .single();
+      
+      if (beforeMsg) {
+        query = query.lt('created_at', beforeMsg.created_at);
+      }
+    }
+    
+    query = query.limit(limit);
+    
+    const { data: messages, error } = await query;
     msgQueryTime = Date.now() - msgStart;
     console.log(`[PERF] Message query took ${msgQueryTime}ms (returned ${messages?.length || 0} messages)`);
 
@@ -2376,12 +2622,12 @@ app.get("/make-server-a7e285ba/conversations/:id/messages", async (c) => {
       console.log(`[PERF] Image processing took ${imgTime}ms`);
     }
 
-    // Mark messages as read (fire-and-forget)
+    // Mark messages as read (fire-and-forget) - including admin warnings
     supabaseAdmin
       .from('messages')
       .update({ is_read: true })
       .eq('conversation_id', conversationId)
-      .neq('sender_id', user.id)
+      .or(`sender_id.neq.${user.id},is_admin_warning.eq.true`) // Mark admin warnings as read even if sender_id matches
       .eq('is_read', false)
       .then(() => {})
       .catch((err) => {
@@ -2392,9 +2638,14 @@ app.get("/make-server-a7e285ba/conversations/:id/messages", async (c) => {
     console.log(`[PERF] 🎯 TOTAL REQUEST TIME: ${totalTime}ms`);
     console.log(`[PERF] 📊 BREAKDOWN: Auth=${authTime}ms, Conv=${convTime}ms, Query=${msgQueryTime}ms, Images=${imgTime}ms`);
     
+    // Reverse messages to show oldest first (we queried descending)
+    const reversedMessages = (messagesWithSignedUrls || []).reverse();
+    const hasMore = (messages?.length || 0) >= limit;
+    
     return c.json({ 
       success: true, 
-      messages: messagesWithSignedUrls,
+      messages: reversedMessages,
+      hasMore,
       _debug: {
         totalTime: `${totalTime}ms`,
         authTime: `${authTime}ms`,
@@ -2587,10 +2838,21 @@ app.get("/make-server-a7e285ba/users/:userId", async (c) => {
       averageRating = totalRating / reviewsData.length;
     }
 
+    // SECURITY FIX: Only return public profile fields, not sensitive data
+    // Do NOT expose: email, phone, address, privacy settings, auto-reply
     return c.json({ 
       success: true, 
       profile: {
-        ...profile,
+        id: profile.id,
+        firstName: profile.first_name || '',
+        lastName: profile.last_name || '',
+        avatar: profile.avatar_url || '',
+        bio: profile.bio || '',
+        website: profile.website || '',
+        location: profile.location || '', // General location only, not specific address
+        isVerified: profile.is_verified || false,
+        joinedDate: profile.joined_date,
+        lastActive: profile.show_last_active ? profile.last_active : null,
         stats: {
           activeListings: listingsData?.filter(l => l.status === 'active').length || 0,
           totalListings: listingsData?.length || 0,
@@ -2921,9 +3183,9 @@ app.post("/make-server-a7e285ba/admin/recalculate-review-counts", async (c) => {
       return c.json({ error: "Unauthorized" }, 401);
     }
 
-    // Check admin status from JWT metadata (BizDizy pattern)
-    const isAdmin = user.user_metadata?.role === 'admin' || 
-                    user.user_metadata?.is_admin === true;
+    // Check admin status from JWT app_metadata (secure)
+    const isAdmin = user.app_metadata?.role === 'admin' || 
+                    user.app_metadata?.is_admin === true;
 
     if (!isAdmin) {
       return c.json({ error: "Admin access required" }, 403);
@@ -3175,11 +3437,21 @@ app.get("/make-server-a7e285ba/admin/users", async (c) => {
       console.error(`Error fetching profiles: ${profileError.message}`);
     }
 
+    // Get all admins
+    const { data: admins, error: adminsError } = await supabaseAdmin
+      .from('admins_a7e285ba')
+      .select('user_id');
+
+    if (adminsError) {
+      console.error(`Error fetching admins: ${adminsError.message}`);
+    }
+
+    const adminUserIds = new Set(admins?.map(a => a.user_id) || []);
+
     // Combine auth users with profiles
     const users = authData.users.map(authUser => {
       const profile = profiles?.find(p => p.id === authUser.id);
-      const isAdmin = authUser.user_metadata?.role === 'admin' || 
-                      authUser.user_metadata?.is_admin === true;
+      const isAdmin = adminUserIds.has(authUser.id);
       
       return {
         id: authUser.id,
@@ -3234,19 +3506,27 @@ app.post("/make-server-a7e285ba/admin/promote/:userId", async (c) => {
 
     const supabaseAdmin = getSupabaseAdmin();
     
-    // Update user metadata to add admin role
-    const { data, error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
-      userId,
-      {
-        user_metadata: { 
-          role: 'admin',
-          is_admin: true  // Support both formats
-        }
-      }
-    );
+    // Verify the target user exists
+    const { data: { user: targetUser }, error: getUserError } = await supabaseAdmin.auth.admin.getUserById(userId);
 
-    if (updateError) {
-      console.error(`Error promoting user: ${updateError.message}`);
+    if (getUserError || !targetUser) {
+      console.error(`Error getting user: ${getUserError?.message}`);
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    // Add to secure admin table
+    const { error: insertError } = await supabaseAdmin
+      .from('admins_a7e285ba')
+      .insert({
+        user_id: userId,
+        granted_by: adminUser.id,
+        notes: `Promoted by admin ${adminUser.email || adminUser.id}`
+      })
+      .select()
+      .maybeSingle();
+
+    if (insertError && insertError.code !== '23505') { // Ignore duplicate key error
+      console.error(`Error promoting user: ${insertError.message}`);
       return c.json({ error: 'Failed to promote user' }, 500);
     }
 
@@ -3254,10 +3534,10 @@ app.post("/make-server-a7e285ba/admin/promote/:userId", async (c) => {
 
     return c.json({ 
       success: true,
-      message: 'User promoted to admin. They must log out and log back in for changes to take effect.',
+      message: 'User promoted to admin successfully.',
       user: {
-        id: data.user.id,
-        email: data.user.email,
+        id: targetUser.id,
+        email: targetUser.email,
         role: 'admin',
         isAdmin: true,
       }
@@ -3296,11 +3576,11 @@ app.post("/make-server-a7e285ba/admin/demote/:userId", async (c) => {
 
     const supabaseAdmin = getSupabaseAdmin();
     
-    // Update user metadata to remove admin role
+    // Update app_metadata to remove admin role (secure, cannot be edited by users)
     const { data, error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
       userId,
       {
-        user_metadata: { 
+        app_metadata: { 
           role: 'user',
           is_admin: false
         }
@@ -3407,7 +3687,7 @@ app.put("/make-server-a7e285ba/admin/users/:userId/admin", async (c) => {
 
     const supabaseAdmin = getSupabaseAdmin();
     
-    // Get the user's current metadata
+    // Verify the target user exists
     const { data: { user: targetUser }, error: getUserError } = await supabaseAdmin.auth.admin.getUserById(userId);
 
     if (getUserError || !targetUser) {
@@ -3415,32 +3695,34 @@ app.put("/make-server-a7e285ba/admin/users/:userId/admin", async (c) => {
       return c.json({ error: 'User not found' }, 404);
     }
 
-    // Update auth.users metadata (JWT claims)
-    const updatedMetadata = {
-      ...targetUser.user_metadata,
-      is_admin: isAdmin,
-      role: isAdmin ? 'admin' : 'user'
-    };
+    // Update secure admin table
+    if (isAdmin) {
+      // Add to admin table
+      const { error: insertError } = await supabaseAdmin
+        .from('admins_a7e285ba')
+        .insert({
+          user_id: userId,
+          granted_by: adminUser.id,
+          notes: `Promoted by admin ${adminUser.email || adminUser.id}`
+        })
+        .select()
+        .maybeSingle();
 
-    const { error: updateAuthError } = await supabaseAdmin.auth.admin.updateUserById(
-      userId,
-      { user_metadata: updatedMetadata }
-    );
+      if (insertError && insertError.code !== '23505') { // Ignore duplicate key error
+        console.error(`Error adding to admin table: ${insertError.message}`);
+        return c.json({ error: 'Failed to promote user to admin' }, 500);
+      }
+    } else {
+      // Remove from admin table
+      const { error: deleteError } = await supabaseAdmin
+        .from('admins_a7e285ba')
+        .delete()
+        .eq('user_id', userId);
 
-    if (updateAuthError) {
-      console.error(`Error updating auth metadata: ${updateAuthError.message}`);
-      return c.json({ error: 'Failed to update admin status in auth' }, 500);
-    }
-
-    // Update user_profiles table
-    const { error: updateProfileError } = await supabaseAdmin
-      .from('user_profiles')
-      .update({ is_admin: isAdmin })
-      .eq('id', userId);
-
-    if (updateProfileError) {
-      console.error(`Error updating profile: ${updateProfileError.message}`);
-      return c.json({ error: 'Failed to update admin status in profile' }, 500);
+      if (deleteError) {
+        console.error(`Error removing from admin table: ${deleteError.message}`);
+        return c.json({ error: 'Failed to demote user from admin' }, 500);
+      }
     }
 
     console.log(`User ${userId} admin status updated to ${isAdmin} successfully`);
@@ -3472,8 +3754,8 @@ app.get("/make-server-a7e285ba/admin/check", async (c) => {
       return c.json({ isAdmin: false });
     }
 
-    const isAdmin = user.user_metadata?.role === 'admin' || 
-                    user.user_metadata?.is_admin === true;
+    const isAdmin = user.app_metadata?.role === 'admin' || 
+                    user.app_metadata?.is_admin === true;
 
     return c.json({ 
       isAdmin,
@@ -3629,45 +3911,6 @@ app.post("/make-server-a7e285ba/admin/policies", async (c) => {
   } catch (error) {
     console.error(`Error in admin/policies POST: ${error}`);
     return c.json({ success: false, error: 'Failed to save policies' }, 500);
-  }
-});
-
-// Get unread count
-app.get("/make-server-a7e285ba/notifications/unread-count", async (c) => {
-  try {
-    const { user, error } = await verifyUser(c.req.header('Authorization'));
-    
-    if (error || !user) {
-      return c.json({ error: error || 'Unauthorized' }, 401);
-    }
-
-    const supabaseAdmin = getSupabaseAdmin();
-    
-    // Fetch all notifications and count unread in code (supports both 'read' and 'is_read' columns)
-    const { data: notifications, error: dbError } = await supabaseAdmin
-      .from('notifications')
-      .select('read, is_read')
-      .eq('user_id', user.id);
-
-    if (dbError) {
-      console.error('Error fetching unread count:', dbError);
-      return c.json({ success: true, count: 0 });
-    }
-
-    // Count notifications where the read status is false (check both possible column names)
-    const unreadCount = (notifications || []).filter(n => {
-      const isRead = n.is_read ?? n.read ?? false;
-      return !isRead;
-    }).length;
-
-    return c.json({
-      success: true,
-      count: unreadCount
-    });
-
-  } catch (error) {
-    console.error(`Error in unread-count GET: ${error}`);
-    return c.json({ success: true, count: 0 });
   }
 });
 
@@ -5208,9 +5451,7 @@ app.put('/make-server-a7e285ba/reports/:id/status', async (c) => {
       reviewed_at: new Date().toISOString()
     };
 
-    if (resolutionNotes) {
-      updateData.resolution_notes = resolutionNotes;
-    }
+    // Note: resolution_notes stored in message metadata, not in reports table
 
     const { data: report, error: updateError } = await supabaseAdmin
       .from('reports_a7e285ba')
@@ -5404,11 +5645,15 @@ app.post('/make-server-a7e285ba/reports/:id/action', async (c) => {
         ? `Your ${report.content_type} "${contentTitle}" has been removed by an admin. Reason: ${reason}`
         : `You have received a warning regarding your ${report.content_type} "${contentTitle}". Reason: ${reason}`;
 
+      // Create notification for both warnings and deletes
+      console.log('📧 Sending admin notification to user:', contentOwnerId);
+      console.log('Notification message:', notificationMessage);
+      
       const { error: notifError } = await supabaseAdmin
         .from('notifications')
         .insert({
           user_id: contentOwnerId,
-          title: action === 'delete' ? 'Content Removed' : 'Warning Received',
+          title: action === 'warn' ? 'Admin Warning' : 'Content Removed',
           message: notificationMessage,
           type: 'admin_action',
           read: false,
@@ -5426,6 +5671,8 @@ app.post('/make-server-a7e285ba/reports/:id/action', async (c) => {
 
       if (notifError) {
         console.error('Error creating notification:', notifError);
+      } else {
+        console.log('✅ Admin notification created successfully');
       }
     }
 
@@ -5435,8 +5682,7 @@ app.post('/make-server-a7e285ba/reports/:id/action', async (c) => {
       .update({
         status: 'resolved',
         reviewed_by: user.id,
-        reviewed_at: new Date().toISOString(),
-        resolution_notes: resolutionNotes || `Action taken: ${actionTaken} - ${reason}`
+        reviewed_at: new Date().toISOString()
       })
       .eq('id', reportId);
 
@@ -5452,6 +5698,100 @@ app.post('/make-server-a7e285ba/reports/:id/action', async (c) => {
       success: false, 
       error: 'Internal server error' 
     }, 500);
+  }
+});
+
+// DEBUG: Test admin warning system
+app.post('/make-server-a7e285ba/test-admin-warning', async (c) => {
+  const { user, error } = await verifyUser(c.req.header('Authorization'));
+  
+  if (error || !user) {
+    return c.json({ success: false, error: error || 'Unauthorized' }, 401);
+  }
+
+  const supabaseAdmin = getSupabaseAdmin();
+  
+  try {
+    console.log('🧪 Testing admin warning for user:', user.id);
+    
+    // Step 1: Check if admin conversation exists
+    const { data: existingConv, error: queryError } = await supabaseAdmin
+      .from('conversations')
+      .select('*')
+      .eq('buyer_id', user.id)
+      .eq('seller_id', user.id)
+      .eq('is_admin_warning', true)
+      .maybeSingle();
+    
+    console.log('Step 1 - Existing conversation:', existingConv);
+    if (queryError) console.error('Query error:', queryError);
+    
+    // Step 2: Try to create a conversation
+    if (!existingConv) {
+      const { data: newConv, error: createError } = await supabaseAdmin
+        .from('conversations')
+        .insert({
+          buyer_id: user.id,
+          seller_id: user.id,
+          listing_id: null,
+          is_admin_warning: true,
+          created_at: new Date().toISOString(),
+          last_message_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+      
+      console.log('Step 2 - Created conversation:', newConv);
+      if (createError) console.error('Create error:', createError);
+      
+      if (newConv) {
+        // Step 3: Create a message
+        const { data: msg, error: msgError } = await supabaseAdmin
+          .from('messages')
+          .insert({
+            conversation_id: newConv.id,
+            sender_id: user.id,
+            content: 'This is a test admin warning message.',
+            is_read: false,
+            is_admin_warning: true,
+            metadata: { test: true },
+            created_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+        
+        console.log('Step 3 - Created message:', msg);
+        if (msgError) console.error('Message error:', msgError);
+      }
+    }
+    
+    // Step 4: Fetch all conversations for this user
+    const { data: allConvs, error: fetchError } = await supabaseAdmin
+      .from('conversations')
+      .select(`
+        *,
+        buyer:user_profiles!conversations_buyer_id_fkey(id, first_name, last_name, avatar_url),
+        listing:marketplace_listings(id, title, price, images)
+      `)
+      .or(`buyer_id.eq.${user.id},seller_id.eq.${user.id}`)
+      .order('last_message_at', { ascending: false });
+    
+    console.log('Step 4 - All conversations:', allConvs);
+    if (fetchError) console.error('Fetch error:', fetchError);
+    
+    return c.json({ 
+      success: true, 
+      debug: {
+        userId: user.id,
+        existingConv,
+        allConvs,
+        queryError,
+        fetchError
+      }
+    });
+  } catch (error) {
+    console.error('Test error:', error);
+    return c.json({ success: false, error: String(error) }, 500);
   }
 });
 

@@ -94,8 +94,12 @@ export function MyRetailerDealsPage({ user, onBack, onNavigateToProfile }: MyRet
       const adminStatus = isAdminUser(user);
       setIsAdmin(adminStatus);
 
-      // Get retailer profile
-      const profileData = await DealsService.getMyRetailerProfile();
+      // OPTIMIZED: Load profile, deals, and deal types in parallel
+      const [profileData, dealsData, typesData] = await Promise.all([
+        DealsService.getMyRetailerProfile(),
+        DealsService.getDeals(),
+        DealsService.getDealTypes(),
+      ]);
       
       // If not admin and no profile, redirect
       if (!adminStatus && !profileData) {
@@ -105,26 +109,16 @@ export function MyRetailerDealsPage({ user, onBack, onNavigateToProfile }: MyRet
       }
       
       setProfile(profileData);
+      setDealTypes(typesData);
 
-      // Get all deals
-      const dealsData = await DealsService.getDeals();
+      // Backend already filters deals by user, no need to filter on frontend
+      setDeals(dealsData.deals);
       
-      // If admin, show ALL deals. If retailer, filter to only their deals
+      // If admin, load all retailers for filter
       if (adminStatus) {
-        setDeals(dealsData.deals); // Admin sees all
-        
-        // Load all retailers for filter
         const retailersData = await DealsService.getRetailerProfiles();
         setAllRetailers(retailersData);
-      } else {
-        // Retailer only sees their own deals
-        const myDeals = dealsData.deals.filter((deal: any) => deal.retailer_profile_id === profileData.id);
-        setDeals(myDeals);
       }
-
-      // Get deal types
-      const typesData = await DealsService.getDealTypes();
-      setDealTypes(typesData);
     } catch (error: any) {
       console.error("Error loading data:", error);
       toast.error(error.message || "Failed to load data");

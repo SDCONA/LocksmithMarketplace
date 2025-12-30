@@ -14,6 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "./ui/dialog";
 import { MarketplaceCard } from "./MarketplaceCard";
 import { SearchResultCard } from "./SearchResultCard";
+import { NotificationsSection } from "./NotificationsSection";
 import { UserService, DealsService } from "../utils/services";
 import { AuthService } from "../utils/auth";
 import { projectId } from "../utils/supabase/info";
@@ -61,6 +62,7 @@ interface AccountPageProps {
   onViewProfile?: (userId: string) => void;
   onNavigateToRetailer?: () => void;
   onLogout?: () => void;
+  onNotificationRead?: () => void;
 }
 
 // Mock data for demonstration - RESET: Empty array
@@ -73,7 +75,8 @@ export function AccountPage({
   orderHistory = mockOrderHistory,
   onViewProfile,
   onNavigateToRetailer,
-  onLogout
+  onLogout,
+  onNotificationRead
 }: AccountPageProps) {
   console.log('AccountPage - User data:', user);
   console.log('AccountPage - User phone:', user?.phone);
@@ -92,7 +95,7 @@ export function AccountPage({
     email: user?.email || "",
     phone: user?.phone || "",
     bio: user?.bio || "",
-    city: user?.address?.city || "",
+    city: user?.location || "",
     state: user?.address?.state || "",
     zipCode: user?.address?.zipCode || ""
   });
@@ -145,6 +148,24 @@ export function AccountPage({
     checkRetailerProfile();
   }, [user]);
 
+  // Sync profileData when user prop changes
+  useEffect(() => {
+    if (user) {
+      console.log('Syncing profileData with user:', user);
+      console.log('User address:', user.address);
+      setProfileData({
+        firstName: user.firstName || "",
+        lastName: user.lastName || "",
+        email: user.email || "",
+        phone: user.phone || "",
+        bio: user.bio || "",
+        city: user.location || "",
+        state: user.address?.state || "",
+        zipCode: user.address?.zipCode || ""
+      });
+    }
+  }, [user]);
+
   // Load notifications when tab is activated
   useEffect(() => {
     if (activeTab === 'notifications') {
@@ -192,11 +213,7 @@ export function AccountPage({
         lastName: profileData.lastName,
         phone: profileData.phone,
         bio: profileData.bio,
-        address: {
-          city: profileData.city,
-          state: profileData.state,
-          zipCode: profileData.zipCode,
-        }
+        location: profileData.city
       });
 
       if (result.success && result.user) {
@@ -620,87 +637,7 @@ export function AccountPage({
 
           {/* Notifications Tab */}
           <TabsContent value="notifications" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Notifications</CardTitle>
-                <CardDescription>View and manage your notifications from admins and system updates.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {loadingNotifications ? (
-                  <div className="flex justify-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                  </div>
-                ) : notifications.length === 0 ? (
-                  <div className="text-center py-8">
-                    <Bell className="h-12 w-12 text-gray-400 mx-auto mb-3" />
-                    <p className="text-gray-600">No notifications yet</p>
-                    <p className="text-sm text-gray-500 mt-1">You{'\''}ll see admin actions and important updates here</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {notifications.map((notification) => (
-                      <div
-                        key={notification.id}
-                        className={`border rounded-lg p-4 ${
-                          notification.is_read || notification.read ? 'bg-gray-50' : 'bg-blue-50 border-blue-200'
-                        }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className={`p-2 rounded-full ${
-                            notification.type === 'admin_action' ? 'bg-red-100' :
-                            notification.type === 'policy_update' ? 'bg-yellow-100' :
-                            'bg-blue-100'
-                          }`}>
-                            {notification.type === 'admin_action' ? (
-                              <AlertTriangle className="h-5 w-5 text-red-600" />
-                            ) : notification.type === 'policy_update' ? (
-                              <Shield className="h-5 w-5 text-yellow-600" />
-                            ) : (
-                              <Bell className="h-5 w-5 text-blue-600" />
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2">
-                              <h4 className="font-medium">{notification.title}</h4>
-                              {!(notification.is_read || notification.read) && (
-                                <Badge variant="default" className="bg-blue-600 text-xs">New</Badge>
-                              )}
-                            </div>
-                            <p className="text-sm text-gray-700 mt-1">{notification.message}</p>
-                            
-                            {notification.metadata && (
-                              <div className="mt-3 bg-white border rounded p-3 text-sm space-y-2">
-                                {notification.metadata.report_reason && (
-                                  <div>
-                                    <span className="font-medium text-gray-600">Report Reason: </span>
-                                    <span className="text-gray-700">{notification.metadata.report_reason}</span>
-                                  </div>
-                                )}
-                                {notification.metadata.resolution_notes && (
-                                  <div>
-                                    <span className="font-medium text-gray-600">Admin Notes: </span>
-                                    <span className="text-gray-700">{notification.metadata.resolution_notes}</span>
-                                  </div>
-                                )}
-                                {notification.metadata.action && (
-                                  <Badge variant="outline" className="mt-2">
-                                    Action: {notification.metadata.action}
-                                  </Badge>
-                                )}
-                              </div>
-                            )}
-                            
-                            <p className="text-xs text-gray-500 mt-2">
-                              {new Date(notification.created_at).toLocaleString()}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <NotificationsSection onNotificationsRead={onNotificationRead} />
           </TabsContent>
 
           {/* Settings Tab */}

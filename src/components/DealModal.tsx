@@ -208,7 +208,7 @@ export function DealModal({
         className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="p-6 pb-24 md:pb-6 relative">
+        <div className="p-6 pb-24 md:pb-6 relative overflow-y-auto max-h-[85vh]">
           {/* Close Button */}
           <button
             onClick={onClose}

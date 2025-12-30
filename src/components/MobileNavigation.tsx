@@ -48,8 +48,10 @@ export function MobileNavigation({
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 bg-gradient-to-r from-blue-600/90 via-blue-500/85 to-indigo-600/90 backdrop-blur-xl border-t border-white/20 shadow-[0_-8px_32px_rgba(0,0,0,0.12)] pb-[env(safe-area-inset-bottom)]" style={{ zIndex: 9999 }}>
       <div className="absolute inset-0 bg-gradient-to-t from-white/10 to-transparent pointer-events-none"></div>
-      <div className="grid grid-cols-5 h-14 sm:h-16 relative">
+      <div className="grid grid-cols-4 h-14 sm:h-16 relative">
+        {/* HIDDEN: Retailers button temporarily hidden */}
         {/* Retailers */}
+        {false && (
         <Button
           variant="ghost"
           onClick={() => handleButtonClick('retailers', () => {
@@ -63,6 +65,7 @@ export function MobileNavigation({
           <Heart className="h-4 w-4 sm:h-5 sm:w-5 mb-0.5 sm:mb-1" />
           <span className="text-xs sm:text-sm font-bold leading-tight">Retailers</span>
         </Button>
+        )}
 
         {/* Marketplace */}
         <Button

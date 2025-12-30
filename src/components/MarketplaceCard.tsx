@@ -3,7 +3,7 @@ import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { StarRating } from "./StarRating";
-import { MapPin, MessageCircle, Heart, Clock, ChevronLeft, ChevronRight, TrendingUp, MoreVertical, Edit3, Trash2, Eye, Archive } from "lucide-react";
+import { MapPin, MessageCircle, Heart, Clock, ChevronLeft, ChevronRight, TrendingUp, MoreVertical, Edit3, Trash2, Eye, Archive, CheckSquare, Square } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,6 +49,8 @@ interface MarketplaceCardProps {
   onArchiveListing?: (listingId: string) => void;
   isSaved?: boolean;
   footerAction?: React.ReactNode;
+  onSelectListing?: (listingId: string) => void;
+  isSelected?: boolean;
 }
 
 export function MarketplaceCard({ 
@@ -65,7 +67,9 @@ export function MarketplaceCard({
   onDeleteListing,
   onArchiveListing,
   isSaved = false,
-  footerAction
+  footerAction,
+  onSelectListing,
+  isSelected = false
 }: MarketplaceCardProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   
@@ -121,13 +125,34 @@ export function MarketplaceCard({
   const daysRemaining = getDaysRemaining();
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow duration-200 overflow-hidden cursor-pointer relative">
+    <div className={`bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow duration-200 overflow-hidden cursor-pointer relative ${isSelected ? 'ring-2 ring-blue-500' : ''}`}>
+      {/* Selection Checkbox */}
+      {onSelectListing && (
+        <div className="absolute top-1 sm:top-2 left-1 sm:left-2 z-50">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="bg-white/90 hover:bg-white h-6 w-6 sm:h-8 sm:w-8"
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelectListing(item.id);
+            }}
+          >
+            {isSelected ? (
+              <CheckSquare className="h-4 w-4 text-blue-600" />
+            ) : (
+              <Square className="h-4 w-4 text-gray-600" />
+            )}
+          </Button>
+        </div>
+      )}
+      
       {/* Image */}
       <div className="relative aspect-square" onClick={() => onViewListing(item)}>
         <img
           src={item.images[currentImageIndex]}
           alt={item.title}
-          className="w-full h-full object-contain bg-white"
+          className="w-full h-full object-cover bg-white"
         />
         
         {/* Image navigation for multiple images */}
@@ -201,26 +226,12 @@ export function MarketplaceCard({
                 <DropdownMenuItem 
                   onClick={(e) => {
                     e.stopPropagation();
-                    console.log('📝 Edit clicked for item:', item.id, 'onEditListing exists:', !!onEditListing);
-                    if (onEditListing) {
-                      onEditListing(item);
-                    }
+                    onEditListing(item);
                   }}
                 >
                   <Edit3 className="h-4 w-4 mr-2" />
                   Edit
                 </DropdownMenuItem>
-                {onPromote && (
-                  <DropdownMenuItem 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onPromote(item.id);
-                    }}
-                  >
-                    <TrendingUp className="h-4 w-4 mr-2" />
-                    Promote
-                  </DropdownMenuItem>
-                )}
                 {onArchiveListing && (
                   <>
                     <DropdownMenuSeparator />
@@ -255,6 +266,11 @@ export function MarketplaceCard({
 
       {/* Content */}
       <div className="p-2 sm:p-3 md:p-4 space-y-2 sm:space-y-3" onClick={() => onViewListing(item)}>
+        {/* Title */}
+        <h3 className="font-medium text-gray-900 line-clamp-1 leading-tight text-sm sm:text-base">
+          {item.title}
+        </h3>
+
         {/* Price */}
         <div className="flex items-center justify-between">
           <span className="text-lg sm:text-xl font-semibold text-green-600">
@@ -263,19 +279,6 @@ export function MarketplaceCard({
           <Badge className={`${getConditionColor(item.condition)} text-xs`}>
             {item.condition}
           </Badge>
-        </div>
-
-        {/* Title */}
-        <h3 className="font-medium text-gray-900 line-clamp-2 leading-tight text-sm sm:text-base">
-          {item.title}
-        </h3>
-
-        {/* Location */}
-        <div className="text-xs sm:text-sm text-gray-600">
-          <div className="flex items-center">
-            <MapPin className="h-3 w-3 sm:h-4 sm:w-4 mr-1 flex-shrink-0" />
-            <span className="truncate">{item.location}</span>
-          </div>
         </div>
 
         {/* Expiration countdown - only show for own listings */}

@@ -101,6 +101,13 @@ export function SearchResultCard({
         className="w-full hover:shadow-lg transition-shadow duration-200 relative cursor-pointer"
         onClick={handleCardClick}
       >
+        {/* eBay Badge */}
+        {retailer.name === 'eBay' && (
+          <Badge className="absolute top-2 left-2 z-10 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs">
+            eBay
+          </Badge>
+        )}
+        
         {/* Save Button */}
         <Button
           variant="ghost"

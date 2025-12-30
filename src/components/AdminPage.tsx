@@ -15,7 +15,7 @@ import { toast } from "sonner";
 import { clearProductCache, getCachedSearches } from "../utils/api";
 import { AdminService } from "../utils/services";
 import { AuthService } from "../utils/auth";
-import { projectId } from "../utils/supabase/info";
+import { projectId, publicAnonKey } from "../utils/supabase/info";
 import { 
   Users, 
   UserCircle, 
@@ -54,6 +54,7 @@ import { PromotionalBannersAdmin } from "./PromotionalBannersAdmin";
 import { RetailerProfilesAdmin } from "./deals/RetailerProfilesAdmin";
 import { DealsManagementAdmin } from "./deals/DealsManagementAdmin";
 import { ReportService, Report, ReportDetails, ReportUser } from "../utils/services/reports";
+import { SecurityTestingPage } from "./SecurityTestingPage";
 
 interface AdminPageProps {
   onBack: () => void;
@@ -924,7 +925,7 @@ export function AdminPage({ onBack }: AdminPageProps) {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid grid-cols-4 lg:grid-cols-8 mb-6">
+          <TabsList className="grid grid-cols-4 lg:grid-cols-9 mb-6">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="retailer-profiles">Retailers</TabsTrigger>
@@ -932,6 +933,7 @@ export function AdminPage({ onBack }: AdminPageProps) {
             <TabsTrigger value="vehicles">Vehicles</TabsTrigger>
             <TabsTrigger value="reports">Reports</TabsTrigger>
             <TabsTrigger value="policy">Policy</TabsTrigger>
+            <TabsTrigger value="security">Security</TabsTrigger>
             <TabsTrigger value="system">System</TabsTrigger>
           </TabsList>
 
@@ -1863,82 +1865,14 @@ export function AdminPage({ onBack }: AdminPageProps) {
             </div>
           </TabsContent>
 
+          {/* Security Tab */}
+          <TabsContent value="security">
+            <SecurityTestingPage />
+          </TabsContent>
+
           {/* System Tab */}
           <TabsContent value="system">
             <div className="grid gap-6">
-              {/* Product Cache Management */}
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <CardTitle>Product Cache Management</CardTitle>
-                      <CardDescription>Manage cached product search results from Key4.com</CardDescription>
-                    </div>
-                    <Database className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                      <div>
-                        <p className="text-sm">Product search results are cached for 1 hour to improve performance</p>
-                        <p className="text-sm text-muted-foreground mt-1">Clear cache to force fresh results from retailers</p>
-                      </div>
-                      <Button 
-                        variant="destructive" 
-                        size="sm"
-                        onClick={async () => {
-                          try {
-                            const result = await clearProductCache();
-                            toast.success(result.message || 'Cache cleared successfully');
-                          } catch (error) {
-                            console.error('Error clearing cache:', error);
-                            toast.error('Failed to clear cache');
-                          }
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Clear Cache
-                      </Button>
-                    </div>
-
-                    {/* Cache Statistics */}
-                    <div className="border rounded-lg p-4">
-                      <h4 className="text-sm mb-3">Cache Statistics</h4>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Cache Duration</span>
-                          <Badge variant="secondary">1 hour</Badge>
-                        </div>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Retailer</span>
-                          <Badge variant="outline">Key4.com</Badge>
-                        </div>
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="text-muted-foreground">Storage Location</span>
-                          <Badge variant="outline">Supabase KV Store</Badge>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* API Information */}
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                      <h4 className="text-sm text-blue-900 mb-2 flex items-center gap-2">
-                        <Activity className="h-4 w-4" />
-                        Product Parser Information
-                      </h4>
-                      <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
-                        <li>Automatically scrapes product data from Key4.com</li>
-                        <li>Extracts title, price, images, availability, and seller info</li>
-                        <li>Results are cached for 1 hour to reduce load on retailer websites</li>
-                        <li>Fallback to sample results if parsing fails</li>
-                        <li>Search queries are saved to user's search history</li>
-                      </ul>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
               {/* System Health */}
               <Card>
                 <CardHeader>

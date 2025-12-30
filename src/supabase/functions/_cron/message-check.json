@@ -1,0 +1,6 @@
+{
+  "name": "message-check-cron",
+  "schedule": "*/30 * * * *",
+  "function": "message-check-cron",
+  "description": "Checks for unread messages every 30 minutes and sends notifications to users"
+}

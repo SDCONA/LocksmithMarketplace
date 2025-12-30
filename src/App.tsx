@@ -11,12 +11,12 @@ import { CreateListingModal } from "./components/CreateListingModal";
 import { SearchResultSkeleton, MarketplaceCardSkeleton } from "./components/SkeletonCard";
 import { toast, Toaster } from "sonner";
 import { LocalStorage } from "./lib/localStorage";
-import { searchProducts, ParsedProduct } from "./utils/api";
 import { AuthService, isAdminUser } from "./utils/auth";
 import { ListingsService, SavedItemsService, MessagingService, NotificationsService, DealsService } from "./utils/services";
 import { createClient } from "./utils/supabase/client";
-import { projectId } from "./utils/supabase/info";
+import { projectId, publicAnonKey } from "./utils/supabase/info";
 import { debounce } from "./utils/debounce";
+import { StatePersistence } from "./utils/statePersistence";
 import { DealModal, DealModalData } from "./components/DealModal";
 
 import { EditListingModal } from "./components/EditListingModal";
@@ -69,7 +69,8 @@ import {
   Settings,
   Heart,
   ShieldCheck,
-  Archive
+  Archive,
+  Info
 } from "lucide-react";
 
 // All major retailers promotional banners - memory optimized (KEY4, UHS Hardware, YCKG, KeyDirect, Transponder Island, Car & Truck Remotes, Best Key Supply, Noble Key Supply, Key Innovations, and Locksmith Keyless)
@@ -173,26 +174,31 @@ export default function App() {
     checkAuth();
   }, []);
   
-  // Navigation State
-  const [currentSection, setCurrentSection] = useState<'retailers' | 'search' | 'marketplace' | 'messages' | 'account' | 'listing' | 'settings' | 'profile' | 'help' | 'seller-listings' | 'promote' | 'contact' | 'privacy' | 'terms' | 'deals' | 'marketplace-profile' | 'saved-items' | 'saved-marketplace-listings' | 'saved-deals' | 'archived-listings' | 'admin' | 'retailer-dashboard' | 'my-retailer-deals'>('retailers');
-  const [selectedListing, setSelectedListing] = useState<any>(null);
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const [selectedSellerId, setSelectedSellerId] = useState<string | null>(null);
-  const [previousSection, setPreviousSection] = useState<string | null>(null);
-  const [previousConversationId, setPreviousConversationId] = useState<string | null>(null);
+  // Navigation State - Initialize from localStorage
+  const savedNavState = StatePersistence.getNavigationState();
   
-  // Search States
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedVehicle, setSelectedVehicle] = useState<{year: string, make: string, model: string} | null>(null);
+  const [currentSection, setCurrentSection] = useState<'retailers' | 'search' | 'marketplace' | 'messages' | 'account' | 'listing' | 'settings' | 'profile' | 'help' | 'seller-listings' | 'promote' | 'contact' | 'privacy' | 'terms' | 'deals' | 'marketplace-profile' | 'saved-items' | 'saved-marketplace-listings' | 'saved-deals' | 'archived-listings' | 'admin' | 'retailer-dashboard' | 'my-retailer-deals'>(savedNavState.currentSection as any);
+  const [selectedListing, setSelectedListing] = useState<any>(savedNavState.selectedListing);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(savedNavState.selectedUserId);
+  const [selectedSellerId, setSelectedSellerId] = useState<string | null>(savedNavState.selectedSellerId);
+  const [previousSection, setPreviousSection] = useState<string | null>(savedNavState.previousSection);
+  const [previousConversationId, setPreviousConversationId] = useState<string | null>(savedNavState.previousConversationId);
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
+  
+  // Search States - Initialize from localStorage
+  const savedSearchState = StatePersistence.getSearchState();
+  
+  const [searchQuery, setSearchQuery] = useState(savedSearchState.searchQuery);
+  const [selectedVehicle, setSelectedVehicle] = useState<{year: string, make: string, model: string} | null>(savedSearchState.selectedVehicle);
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState(mockSearchResults);
-  const [showSearchResults, setShowSearchResults] = useState(false);
+  const [showSearchResults, setShowSearchResults] = useState(savedSearchState.showSearchResults);
   const [selectedDealForModal, setSelectedDealForModal] = useState<DealModalData | null>(null);
   
   // Search Filter states
-  const [selectedRetailers, setSelectedRetailers] = useState<string[]>([]);
-  const [sortBy, setSortBy] = useState("relevance");
-  const [inStockOnly, setInStockOnly] = useState(false);
+  const [selectedRetailers, setSelectedRetailers] = useState<string[]>(savedSearchState.selectedRetailers);
+  const [sortBy, setSortBy] = useState(savedSearchState.sortBy);
+  const [inStockOnly, setInStockOnly] = useState(savedSearchState.inStockOnly);
   
   // Marketplace States
   const [marketplaceItems, setMarketplaceItems] = useState<any[]>([]);
@@ -203,7 +209,10 @@ export default function App() {
   const [listingsError, setListingsError] = useState<string | null>(null);
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportingListing, setReportingListing] = useState<any>(null);
-  const [marketplaceSearch, setMarketplaceSearch] = useState("");
+  
+  // Marketplace Search - Initialize from localStorage
+  const savedMarketplaceState = StatePersistence.getMarketplaceState();
+  const [marketplaceSearch, setMarketplaceSearch] = useState(savedMarketplaceState.marketplaceSearch);
   
   // Infinite scroll pagination states
   const [currentPage, setCurrentPage] = useState(1);
@@ -211,26 +220,14 @@ export default function App() {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   
   // Marketplace Filter states with persistence
-  const [selectedCategory, setSelectedCategory] = useState<string>(() => {
-    const saved = LocalStorage.getMarketplaceFilterPreferences();
-    return saved?.selectedCategory || "all";
-  });
-  const [selectedCondition, setSelectedCondition] = useState<string>(() => {
-    const saved = LocalStorage.getMarketplaceFilterPreferences();
-    return saved?.selectedCondition || "all";
-  });
+  const [selectedCategory, setSelectedCategory] = useState<string>(savedMarketplaceState.selectedCategory);
+  const [selectedCondition, setSelectedCondition] = useState<string>(savedMarketplaceState.selectedCondition);
   const [marketplaceSortBy, setMarketplaceSortBy] = useState(() => {
     // Always default to "random" on page load/refresh
     return "random";
   });
-  const [zipCode, setZipCode] = useState(() => {
-    const saved = LocalStorage.getMarketplaceFilterPreferences();
-    return saved?.zipCode || "";
-  });
-  const [radius, setRadius] = useState(() => {
-    const saved = LocalStorage.getMarketplaceFilterPreferences();
-    return saved?.radius || 25;
-  });
+  const [zipCode, setZipCode] = useState(savedMarketplaceState.zipCode);
+  const [radius, setRadius] = useState(savedMarketplaceState.radius);
 
   // Marketplace Profile States
   const [marketplaceProfile, setMarketplaceProfile] = useState<any>(null);
@@ -243,6 +240,89 @@ export default function App() {
   
   // Saved Marketplace Listings State  
   const [savedMarketplaceListings, setSavedMarketplaceListings] = useState<any[]>([]);
+  
+  // Check for unread notifications
+  useEffect(() => {
+    const checkUnreadNotifications = async () => {
+      if (!user) {
+        setUnreadNotificationsCount(0);
+        return;
+      }
+
+      try {
+        const accessToken = localStorage.getItem('sb-access-token');
+        if (!accessToken) return;
+
+        const response = await fetch(
+          `https://${projectId}.supabase.co/functions/v1/make-server-a7e285ba/notifications/unread-count`,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
+        );
+
+        const data = await response.json();
+        if (data.success) {
+          setUnreadNotificationsCount(data.count || 0);
+        }
+      } catch (error) {
+        console.error('Error checking unread notifications:', error);
+      }
+    };
+
+    checkUnreadNotifications();
+    
+    // Check every 60 seconds
+    const interval = setInterval(checkUnreadNotifications, 60000);
+    
+    return () => clearInterval(interval);
+  }, [user]);
+
+  // Clear notification count when user opens account page
+  useEffect(() => {
+    if (currentSection === 'account' && unreadNotificationsCount > 0) {
+      // Small delay to allow notifications page to load
+      setTimeout(() => {
+        setUnreadNotificationsCount(0);
+      }, 1000);
+    }
+  }, [currentSection]);
+
+  // Persist navigation state on changes
+  useEffect(() => {
+    StatePersistence.saveNavigationState({
+      currentSection,
+      selectedListing,
+      selectedUserId,
+      selectedSellerId,
+      previousSection,
+      previousConversationId
+    });
+  }, [currentSection, selectedListing, selectedUserId, selectedSellerId, previousSection, previousConversationId]);
+
+  // Persist search state on changes
+  useEffect(() => {
+    StatePersistence.saveSearchState({
+      searchQuery,
+      selectedVehicle,
+      selectedRetailers,
+      sortBy,
+      inStockOnly,
+      showSearchResults
+    });
+  }, [searchQuery, selectedVehicle, selectedRetailers, sortBy, inStockOnly, showSearchResults]);
+
+  // Persist marketplace state on changes
+  useEffect(() => {
+    StatePersistence.saveMarketplaceState({
+      marketplaceSearch,
+      selectedCategory,
+      selectedCondition,
+      zipCode,
+      radius
+    });
+  }, [marketplaceSearch, selectedCategory, selectedCondition, zipCode, radius]);
   
   // Fix saved items with incorrect URLs (Figma links)
   useEffect(() => {
@@ -291,7 +371,8 @@ export default function App() {
               }
               return item;
             } catch (error) {
-              console.error(`Failed to fix URL for item ${item.id}:`, error);
+              // Silently skip items that can't be fetched (likely deleted deals)
+              console.log(`Skipping URL fix for item ${item.id} - deal may be deleted`);
               return item;
             }
           })
@@ -305,9 +386,15 @@ export default function App() {
           })
         );
         
-        toast.success(`Fixed ${itemsToFix.length} product links`);
+        const successfullyFixed = fixedItems.filter((item, index) => 
+          item.productUrl !== itemsToFix[index].productUrl
+        ).length;
+        
+        if (successfullyFixed > 0) {
+          toast.success(`Fixed ${successfullyFixed} product links`);
+        }
       } catch (error) {
-        console.error('Error fixing saved item URLs:', error);
+        console.log('Some saved item URLs could not be fixed - deals may be deleted');
       }
     };
     
@@ -317,6 +404,28 @@ export default function App() {
   // Unread Messages State
   const [unreadMessagesCount, setUnreadMessagesCount] = useState<number>(0);
 
+  // Sync URL with current section
+  useEffect(() => {
+    const path = `/${currentSection}`;
+    if (window.location.pathname !== path) {
+      window.history.pushState({}, '', path);
+    }
+  }, [currentSection]);
+  
+  // Listen for browser back/forward navigation
+  useEffect(() => {
+    const handlePopState = () => {
+      const path = window.location.pathname.slice(1);
+      const validSections = ['retailers', 'search', 'marketplace', 'messages', 'account', 'listing', 'settings', 'profile', 'help', 'seller-listings', 'promote', 'contact', 'privacy', 'terms', 'deals', 'marketplace-profile', 'saved-items', 'saved-marketplace-listings', 'saved-deals', 'archived-listings', 'admin', 'retailer-dashboard', 'my-retailer-deals'];
+      if (validSections.includes(path)) {
+        setCurrentSection(path as any);
+      }
+    };
+    
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+  
   // Check admin access when navigating to admin section
   useEffect(() => {
     if (currentSection === 'admin' && !isAdminUser(user)) {
@@ -613,17 +722,18 @@ export default function App() {
             id: deal.id,
             name: deal.title,
             description: deal.description || '',
-            price: deal.salePrice || deal.price || '',
-            originalPrice: deal.originalPrice || '',
+            price: typeof deal.price === 'number' ? deal.price : parseFloat(deal.salePrice || deal.price || '0'),
+            originalPrice: deal.originalPrice ? (typeof deal.originalPrice === 'number' ? deal.originalPrice : parseFloat(deal.originalPrice)) : undefined,
             image: deal.images?.[0]?.image_url || deal.image || '',
             retailer: {
               name: deal.sourceType === 'ebay' ? 'eBay' : (deal.retailer_profile?.company_name || 'Retailer'),
               website: deal.external_url || '#',
-              location: 'USA',
+              location: deal.location || 'USA',
             },
             inStock: true,
             productUrl: deal.external_url || '#',
             lastUpdated: 'Just now',
+            shipping: deal.shippingCost ? `+$${deal.shippingCost.toFixed(2)} shipping` : (deal.shippingCost === 0 ? 'Free shipping' : undefined),
             dealData: deal.sourceType === 'retailer' ? deal : null, // Include full deal data for database products
           }));
 
@@ -632,10 +742,29 @@ export default function App() {
           const dbCount = result.deals.filter((d: any) => d.sourceType === 'retailer').length;
           const ebayCount = result.deals.filter((d: any) => d.sourceType === 'ebay').length;
           
-          toast.success(`Found ${transformedResults.length} products`, {
-            description: `${dbCount} from retailers, ${ebayCount} from eBay`,
-            duration: 3000,
-          });
+          // Show appropriate message based on results
+          if (transformedResults.length > 0) {
+            if (ebayCount > 0 && dbCount > 0) {
+              toast.success(`Found ${transformedResults.length} products`, {
+                description: `${dbCount} from retailers, ${ebayCount} from eBay`,
+                duration: 3000,
+              });
+            } else if (ebayCount > 0) {
+              toast.success(`Found ${ebayCount} products from eBay`, {
+                duration: 3000,
+              });
+            } else if (dbCount > 0) {
+              toast.success(`Found ${dbCount} products from retailers`, {
+                description: 'eBay results temporarily unavailable (cached or rate limited)',
+                duration: 4000,
+              });
+            }
+          } else {
+            toast.info('No products found', {
+              description: 'Try a different search term or vehicle',
+              duration: 3000,
+            });
+          }
           
           setIsSearching(false);
           return;
@@ -717,6 +846,9 @@ export default function App() {
     setUser(null);
     setCurrentSection('retailers');
     setPreviousConversationId(null);
+    
+    // Clear all persisted state on logout
+    StatePersistence.clearAllState();
   };
 
   const handleUpdateUser = (userData: any) => {
@@ -1455,7 +1587,7 @@ export default function App() {
               <div className="relative flex-1 min-w-0">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                 <Input
-                  placeholder={currentSection === 'marketplace' ? "Search marketplace..." : "Search keys..."}
+                  placeholder={currentSection === 'marketplace' ? "Search marketplace..." : "Search automotive keys (includes eBay)..."}
                   value={currentSection === 'marketplace' ? marketplaceSearch : searchQuery}
                   onChange={(e) => {
                     if (currentSection === 'marketplace') {
@@ -1493,7 +1625,14 @@ export default function App() {
               {user ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="text-white hover:bg-white/20 hover:shadow-lg p-2 rounded-xl flex-shrink-0 backdrop-blur-sm border border-white/10 hover:border-white/30 transition-all duration-300">
+                    <Button 
+                      variant="ghost" 
+                      className={`text-white hover:bg-white/20 hover:shadow-lg p-2 rounded-xl flex-shrink-0 backdrop-blur-sm border transition-all duration-300 ${
+                        unreadNotificationsCount > 0 
+                          ? 'border-red-500 ring-2 ring-red-500/50 hover:border-red-400' 
+                          : 'border-white/10 hover:border-white/30'
+                      }`}
+                    >
                       <Avatar className="h-6 w-6 ring-2 ring-white/40 shadow-md">
                         <AvatarImage src={user.avatar} />
                         <AvatarFallback className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-medium text-xs">
@@ -1584,6 +1723,8 @@ export default function App() {
                 
                 {/* Desktop Navigation Buttons */}
                 <div className="flex items-center space-x-2 ml-6 flex-shrink-0">
+                  {/* HIDDEN: Retailers button temporarily hidden */}
+                  {false && (
                   <Button
                     variant="ghost"
                     onClick={() => {
@@ -1597,6 +1738,7 @@ export default function App() {
                     <span className="hidden lg:inline">Retailers</span>
                     <span className="lg:hidden">Retail</span>
                   </Button>
+                  )}
                   
                   <Button
                     variant="ghost"
@@ -1661,7 +1803,7 @@ export default function App() {
                     <div className="flex-1 relative w-full">
                       <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                       <Input
-                        placeholder="Search"
+                        placeholder={currentSection === 'marketplace' ? "Search marketplace..." : "Search automotive keys (includes eBay)..."}
                         value={currentSection === 'marketplace' ? marketplaceSearch : searchQuery}
                         onChange={(e) => {
                           if (currentSection === 'marketplace') {
@@ -1722,7 +1864,14 @@ export default function App() {
               {user ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" className="flex items-center space-x-2 text-white hover:bg-white/20 hover:shadow-lg backdrop-blur-sm rounded-2xl px-4 py-2.5 transition-all duration-300 ml-4 flex-shrink-0 border border-white/10 hover:border-white/30 shadow-md">
+                    <Button 
+                      variant="ghost" 
+                      className={`flex items-center space-x-2 text-white hover:bg-white/20 hover:shadow-lg backdrop-blur-sm rounded-2xl px-4 py-2.5 transition-all duration-300 ml-4 flex-shrink-0 border shadow-md ${
+                        unreadNotificationsCount > 0 
+                          ? 'border-red-500 ring-2 ring-red-500/50 hover:border-red-400' 
+                          : 'border-white/10 hover:border-white/30'
+                      }`}
+                    >
                       <Avatar className="h-8 w-8 ring-2 ring-white/40 shadow-md">
                         <AvatarImage src={user.avatar} />
                         <AvatarFallback className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-medium">
@@ -1840,6 +1989,29 @@ export default function App() {
             onViewProfile={handleViewProfile}
             onNavigateToRetailer={() => setCurrentSection('retailer-dashboard')}
             onLogout={handleLogout}
+            onNotificationRead={async () => {
+              // Reload notification count after marking as read
+              try {
+                const accessToken = localStorage.getItem('sb-access-token');
+                if (!accessToken) return;
+
+                const response = await fetch(
+                  `https://${projectId}.supabase.co/functions/v1/make-server-a7e285ba/notifications/unread-count`,
+                  {
+                    headers: {
+                      Authorization: `Bearer ${accessToken}`,
+                    },
+                  }
+                );
+
+                const data = await response.json();
+                if (data.success) {
+                  setUnreadNotificationsCount(data.count || 0);
+                }
+              } catch (error) {
+                console.error('Error refreshing notification count:', error);
+              }
+            }}
           />
         )}
 
@@ -2172,18 +2344,6 @@ export default function App() {
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            console.log('Archived listings button clicked');
-                            setCurrentSection('archived-listings');
-                          }}
-                          className="text-gray-600 border-gray-200 hover:bg-gray-50"
-                        >
-                          <Archive className="h-4 w-4 mr-1" />
-                          Archive
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
                             console.log('My profile button clicked');
                             setCurrentSection('marketplace-profile');
                           }}
@@ -2195,7 +2355,7 @@ export default function App() {
                     )}
                   </div>
                   
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                  <div className="grid grid-cols-2 gap-2 -mx-4 md:mx-0 md:grid-cols-5 md:gap-4">
                     {isLoadingListings ? (
                       // Show skeleton loaders while loading
                       Array.from({ length: 10 }).map((_, index) => (
@@ -2281,7 +2441,17 @@ export default function App() {
                       }
                     </h2>
                     <p className="text-gray-600 mt-1">
-                      {sortedResults.length} results found across 9 retailers
+                      {(() => {
+                        const ebayCount = sortedResults.filter(r => r.retailer.name === 'eBay').length;
+                        const retailerCount = sortedResults.length - ebayCount;
+                        if (ebayCount > 0 && retailerCount > 0) {
+                          return `${sortedResults.length} results found (${retailerCount} from retailers, ${ebayCount} from eBay)`;
+                        } else if (ebayCount > 0) {
+                          return `${sortedResults.length} results found from eBay`;
+                        } else {
+                          return `${sortedResults.length} results found from retailers`;
+                        }
+                      })()}
                     </p>
                   </div>
                   <div className="flex items-center space-x-2">
@@ -2358,7 +2528,8 @@ export default function App() {
             )}
 
             {/* Promotional Retailers Section */}
-            {!showSearchResults && currentSection === 'retailers' && (
+            {/* HIDDEN: Retailers page temporarily hidden */}
+            {false && !showSearchResults && currentSection === 'retailers' && (
               <DynamicRetailersPage
                 user={user}
                 savedItemsCount={savedItems.length}

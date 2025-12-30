@@ -46,6 +46,7 @@ async function archiveExpiredDeals() {
 // Get all retailer profiles - NO ADMIN CHECK, anyone can view
 dealsApp.get('/retailer-profiles', async (c) => {
   try {
+    console.log('[DEALS] GET /retailer-profiles - Request received');
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const { data, error } = await supabase
       .from('retailer_profiles')
@@ -55,11 +56,18 @@ dealsApp.get('/retailer-profiles', async (c) => {
       `)
       .order('created_at', { ascending: false });
 
-    if (error) throw error;
+    if (error) {
+      console.error('[DEALS] GET /retailer-profiles - Database error:', error);
+      throw error;
+    }
+    console.log(`[DEALS] GET /retailer-profiles - Successfully fetched ${data?.length || 0} profiles`);
     return c.json({ profiles: data });
   } catch (error) {
-    console.error('Error fetching retailer profiles:', error);
-    return c.json({ error: 'Failed to fetch retailer profiles' }, 500);
+    console.error('[DEALS] GET /retailer-profiles - Error fetching retailer profiles:', error);
+    return c.json({ 
+      error: 'Failed to fetch retailer profiles',
+      details: error instanceof Error ? error.message : String(error)
+    }, 500);
   }
 });
 
@@ -440,17 +448,25 @@ dealsApp.post('/retailer-profiles/:id/logo/upload', async (c) => {
 // Get all deal types (Public)
 dealsApp.get('/deal-types', async (c) => {
   try {
+    console.log('[DEALS] GET /deal-types - Request received');
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
     const { data, error } = await supabase
       .from('deal_types')
       .select('*')
       .order('display_order', { ascending: true });
 
-    if (error) throw error;
+    if (error) {
+      console.error('[DEALS] GET /deal-types - Database error:', error);
+      throw error;
+    }
+    console.log(`[DEALS] GET /deal-types - Successfully fetched ${data?.length || 0} deal types`);
     return c.json({ dealTypes: data });
   } catch (error) {
-    console.error('Error fetching deal types:', error);
-    return c.json({ error: 'Failed to fetch deal types' }, 500);
+    console.error('[DEALS] GET /deal-types - Error:', error);
+    return c.json({ 
+      error: 'Failed to fetch deal types',
+      details: error instanceof Error ? error.message : String(error)
+    }, 500);
   }
 });
 
@@ -488,7 +504,7 @@ dealsApp.post('/deal-types', async (c) => {
 // ========================================
 
 // Get all deals for admin or retailer user
-dealsApp.get('/deals', async (c) => {
+dealsApp.get('/', async (c) => {
   try {
     const user = await getAuthUser(c.req.header('Authorization'));
     if (!user) {
@@ -529,21 +545,45 @@ dealsApp.get('/deals', async (c) => {
     }
 
     const { data, error } = await query;
-    if (error) throw error;
+    if (error) {
+      console.error('[DEALS] GET / - Database error fetching deals:', error);
+      throw error;
+    }
 
-    // Get deals count for today for each profile
+    console.log(`[DEALS] GET / - Successfully fetched ${data?.length || 0} deals`);
+
+    // Get deals count for today for each profile - OPTIMIZED with parallel execution
     const profileIds = [...new Set(data.map(d => d.retailer_profile_id))];
     const dealsToday: Record<string, number> = {};
     
-    for (const profileId of profileIds) {
-      const { data: countData } = await supabase.rpc('get_deals_today_count', { profile_id: profileId });
-      dealsToday[profileId] = countData || 0;
-    }
+    // Execute all RPC calls in parallel instead of sequential
+    const countPromises = profileIds.map(async (profileId) => {
+      try {
+        const { data: countData, error: rpcError } = await supabase.rpc('get_deals_today_count', { profile_id: profileId });
+        if (rpcError) {
+          console.warn(`[DEALS] GET / - RPC error for profile ${profileId}:`, rpcError);
+          return { profileId, count: 0 };
+        }
+        return { profileId, count: countData || 0 };
+      } catch (rpcError) {
+        console.warn(`[DEALS] GET / - Failed to get today count for profile ${profileId}:`, rpcError);
+        return { profileId, count: 0 };
+      }
+    });
+
+    // Wait for all counts to complete
+    const counts = await Promise.all(countPromises);
+    counts.forEach(({ profileId, count }) => {
+      dealsToday[profileId] = count;
+    });
 
     return c.json({ deals: data, dealsToday });
   } catch (error) {
-    console.error('Error fetching deals:', error);
-    return c.json({ error: 'Failed to fetch deals' }, 500);
+    console.error('[DEALS] GET / - Error fetching deals:', error);
+    return c.json({ 
+      error: 'Failed to fetch deals',
+      details: error instanceof Error ? error.message : String(error)
+    }, 500);
   }
 });
 
@@ -592,7 +632,10 @@ dealsApp.get('/retailer-profiles/:id/deals', async (c) => {
     if (error) throw error;
 
     // Get deals count for today
-    const { data: todayCount } = await supabase.rpc('get_deals_today_count', { profile_id: profileId });
+    const { data: todayCount, error: rpcError } = await supabase.rpc('get_deals_today_count', { profile_id: profileId });
+    if (rpcError) {
+      console.warn(`[DEALS] RPC error getting today count for profile ${profileId}:`, rpcError);
+    }
 
     // Get profile limits
     const { data: profileData } = await supabase
@@ -607,63 +650,16 @@ dealsApp.get('/retailer-profiles/:id/deals', async (c) => {
       dailyLimit: profileData?.daily_deal_limit || 10
     });
   } catch (error) {
-    console.error('Error fetching retailer deals:', error);
-    return c.json({ error: 'Failed to fetch retailer deals' }, 500);
-  }
-});
-
-// Get single deal (Admin, owner, or public if active)
-dealsApp.get('/deals/:id', async (c) => {
-  try {
-    const dealId = c.req.param('id');
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    
-    const { data: deal, error } = await supabase
-      .from('deals')
-      .select(`
-        *,
-        retailer_profile:retailer_profiles(*),
-        deal_type:deal_types(*),
-        images:deal_images(*)
-      `)
-      .eq('id', dealId)
-      .single();
-
-    if (error) throw error;
-    if (!deal) {
-      return c.json({ error: 'Deal not found' }, 404);
-    }
-
-    // Check if public can view
-    const user = await getAuthUser(c.req.header('Authorization'));
-    if (!user && deal.status !== 'active') {
-      return c.json({ error: 'Deal not available' }, 403);
-    }
-
-    // Check if user has access
-    if (user && deal.status !== 'active') {
-      const admin = await isAdmin(user.id);
-      const isOwner = deal.retailer_profile.owner_user_id === user.id;
-      if (!admin && !isOwner) {
-        return c.json({ error: 'Unauthorized' }, 403);
-      }
-    }
-
-    // Increment view count
-    await supabase
-      .from('deals')
-      .update({ view_count: (deal.view_count || 0) + 1 })
-      .eq('id', dealId);
-
-    return c.json({ deal: { ...deal, view_count: (deal.view_count || 0) + 1 } });
-  } catch (error) {
-    console.error('Error fetching deal:', error);
-    return c.json({ error: 'Failed to fetch deal' }, 500);
+    console.error('[DEALS] Error fetching retailer deals:', error);
+    return c.json({ 
+      error: 'Failed to fetch retailer deals',
+      details: error instanceof Error ? error.message : String(error)
+    }, 500);
   }
 });
 
 // Create deal (Admin or owner - with limit check)
-dealsApp.post('/deals', async (c) => {
+dealsApp.post('/', async (c) => {
   try {
     const user = await getAuthUser(c.req.header('Authorization'));
     if (!user) {
@@ -730,7 +726,7 @@ dealsApp.post('/deals', async (c) => {
 });
 
 // Update deal (Admin or owner)
-dealsApp.put('/deals/:id', async (c) => {
+dealsApp.put('/:id', async (c) => {
   try {
     const user = await getAuthUser(c.req.header('Authorization'));
     if (!user) {
@@ -792,7 +788,7 @@ dealsApp.put('/deals/:id', async (c) => {
 });
 
 // Delete deal (Admin or owner)
-dealsApp.delete('/deals/:id', async (c) => {
+dealsApp.delete('/:id', async (c) => {
   try {
     const user = await getAuthUser(c.req.header('Authorization'));
     if (!user) {
@@ -834,7 +830,7 @@ dealsApp.delete('/deals/:id', async (c) => {
 });
 
 // Archive deal (Admin or owner)
-dealsApp.post('/deals/:id/archive', async (c) => {
+dealsApp.post('/:id/archive', async (c) => {
   try {
     const user = await getAuthUser(c.req.header('Authorization'));
     if (!user) {
@@ -878,7 +874,7 @@ dealsApp.post('/deals/:id/archive', async (c) => {
 });
 
 // Restore deal from archive (Admin or owner)
-dealsApp.post('/deals/:id/restore', async (c) => {
+dealsApp.post('/:id/restore', async (c) => {
   try {
     const user = await getAuthUser(c.req.header('Authorization'));
     if (!user) {
@@ -938,7 +934,7 @@ dealsApp.post('/deals/:id/restore', async (c) => {
 });
 
 // Pause deal (Admin or owner)
-dealsApp.post('/deals/:id/pause', async (c) => {
+dealsApp.post('/:id/pause', async (c) => {
   try {
     const user = await getAuthUser(c.req.header('Authorization'));
     if (!user) {
@@ -982,7 +978,7 @@ dealsApp.post('/deals/:id/pause', async (c) => {
 });
 
 // Activate deal (Admin or owner)
-dealsApp.post('/deals/:id/activate', async (c) => {
+dealsApp.post('/:id/activate', async (c) => {
   try {
     const user = await getAuthUser(c.req.header('Authorization'));
     if (!user) {
@@ -1193,58 +1189,18 @@ dealsApp.get('/public/search', async (c) => {
       sourceType: 'retailer',
     }));
 
-    // 2. Search external sources (eBay, etc.) if enabled
-    let externalProducts: any[] = [];
-    
-    if (includeExternal && query) {
-      try {
-        // Dynamically import eBay API
-        const { ebayAPI } = await import('./ebay-api.tsx');
-        
-        if (ebayAPI.isEnabled()) {
-          const ebayResults = await ebayAPI.searchKeys(query, 20);
-          externalProducts = ebayResults.map(product => ({
-            id: product.id,
-            title: product.title,
-            description: `Condition: ${product.condition}${product.location ? ` • Location: ${product.location}` : ''}`,
-            price: product.price,
-            original_price: null,
-            external_url: product.url,
-            expires_at: null,
-            retailer_profile: {
-              id: 'ebay',
-              company_name: 'eBay',
-              logo_url: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/EBay_logo.svg/300px-EBay_logo.svg.png',
-              is_always_on_top: false,
-            },
-            deal_type: null,
-            images: product.imageUrl ? [{
-              id: `${product.id}-img`,
-              image_url: product.imageUrl,
-              display_order: 0,
-            }] : [],
-            source: product.source,
-            sourceType: 'external',
-            currency: product.currency,
-            condition: product.condition,
-            sellerName: product.sellerName,
-            shippingCost: product.shippingCost,
-          }));
-        }
-      } catch (error) {
-        console.error('Error fetching external products:', error);
-        // Don't fail the entire request if external API fails
-      }
-    }
+    // 2. External sources (currently disabled - all deals come from database)
+    const externalProducts: any[] = [];
 
-    // 3. Combine results: Database deals first, then external products
-    const allResults = [...finalDbDeals, ...externalProducts];
+    // 3. Combine results
+    const allResults = [...finalDbDeals];
+    
+    console.log(`📊 Total results: ${allResults.length} (${finalDbDeals.length} database)`);
 
     return c.json({
       deals: allResults,
       sources: {
         database: finalDbDeals.length,
-        ebay: externalProducts.length,
       },
     });
   } catch (error) {
@@ -1254,11 +1210,253 @@ dealsApp.get('/public/search', async (c) => {
 });
 
 // ========================================
+// DEBUG & TESTING (PUBLIC - NO AUTH)
+// ========================================
+
+// Simple ping test (to verify public routes work)
+dealsApp.get('/public/debug/ping', async (c) => {
+  return c.json({ 
+    success: true, 
+    message: 'Pong! Public debug endpoint is accessible.',
+    timestamp: new Date().toISOString()
+  });
+});
+
+
+
+// ========================================
+// EBAY API MANAGEMENT
+// ========================================
+
+// Clear eBay rate limit (admin endpoint)
+dealsApp.post('/ebay/reset-rate-limit', async (c) => {
+  try {
+    console.log('[Admin] eBay rate limit reset requested');
+    
+    // Import KV store
+    const kv = await import('./kv_store.tsx');
+    
+    // Check what's there before deleting
+    const beforeData = await kv.get('ebay_rate_limit');
+    console.log('[Admin] Rate limit data BEFORE delete:', beforeData);
+    
+    // Clear rate limit
+    await kv.del('ebay_rate_limit');
+    
+    // Verify deletion
+    const afterData = await kv.get('ebay_rate_limit');
+    console.log('[Admin] Rate limit data AFTER delete:', afterData);
+    
+    const wasDeleted = !afterData || !afterData.exceeded;
+    
+    console.log('[Admin] eBay rate limit cleared:', wasDeleted ? '✅ SUCCESS' : '❌ FAILED');
+    
+    return c.json({ 
+      success: wasDeleted,
+      message: wasDeleted ? 'eBay rate limit cleared successfully' : 'Failed to clear rate limit',
+      before: beforeData,
+      after: afterData
+    });
+  } catch (error) {
+    console.error('[Admin] Error clearing eBay rate limit:', error);
+    return c.json({ error: 'Failed to clear rate limit', details: String(error) }, 500);
+  }
+});
+
+// Check eBay rate limit status
+dealsApp.get('/ebay/status', async (c) => {
+  try {
+    console.log('[eBay Status Check] Checking rate limit status in KV store...');
+    
+    // Import KV store
+    const kv = await import('./kv_store.tsx');
+    
+    // Get rate limit data
+    const rateLimitData = await kv.get('ebay_rate_limit');
+    
+    console.log('[eBay Status Check] Rate limit data:', rateLimitData);
+    
+    if (!rateLimitData || !rateLimitData.exceeded) {
+      console.log('[eBay Status Check] ✅ No rate limit active');
+      return c.json({
+        rateLimited: false,
+        message: 'eBay API is available'
+      });
+    }
+    
+    const minutesRemaining = Math.ceil((rateLimitData.resetTime - Date.now()) / 60000);
+    const resetDate = new Date(rateLimitData.resetTime).toISOString();
+    
+    console.log(`[eBay Status Check] ⏸️ Rate limited - ${minutesRemaining} minutes remaining until ${resetDate}`);
+    
+    return c.json({
+      rateLimited: true,
+      resetTime: rateLimitData.resetTime,
+      resetDate,
+      minutesRemaining,
+      message: `Rate limited - resets in ${minutesRemaining} minutes`
+    });
+  } catch (error) {
+    console.error('[eBay Status Check] ❌ Error checking eBay status:', error);
+    return c.json({ error: 'Failed to check status' }, 500);
+  }
+});
+
+// Diagnostic endpoint for eBay search
+dealsApp.get('/ebay/diagnostics', async (c) => {
+  try {
+    console.log('[eBay Diagnostics] Starting diagnostic check...');
+    
+    const diagnostics: any = {
+      timestamp: new Date().toISOString(),
+      configuration: {},
+      rateLimit: {},
+      testSearch: {}
+    };
+    
+    // Check configuration
+    const hasAppId = !!Deno.env.get('EBAY_APP_ID');
+    const hasDevId = !!Deno.env.get('EBAY_DEV_ID');
+    const hasCertId = !!Deno.env.get('EBAY_CERT_ID');
+    
+    diagnostics.configuration = {
+      hasAppId,
+      hasDevId,
+      hasCertId,
+      isConfigured: hasAppId && hasDevId && hasCertId,
+      appIdLength: Deno.env.get('EBAY_APP_ID')?.length || 0
+    };
+    
+    console.log('[eBay Diagnostics] Configuration:', diagnostics.configuration);
+    
+    // Check rate limit
+    const kv = await import('./kv_store.tsx');
+    const rateLimitData = await kv.get('ebay_rate_limit');
+    
+    diagnostics.rateLimit = {
+      isRateLimited: rateLimitData?.exceeded || false,
+      resetTime: rateLimitData?.resetTime || null,
+      minutesRemaining: rateLimitData?.resetTime 
+        ? Math.ceil((rateLimitData.resetTime - Date.now()) / 60000) 
+        : 0
+    };
+    
+    console.log('[eBay Diagnostics] Rate limit:', diagnostics.rateLimit);
+    
+    // Try a test search
+    if (diagnostics.configuration.isConfigured && !diagnostics.rateLimit.isRateLimited) {
+      console.log('[eBay Diagnostics] Attempting test search...');
+      try {
+        const { ebayAPI } = await import('./ebay-api.tsx');
+        const testResults = await ebayAPI.searchKeys('test', 5);
+        
+        diagnostics.testSearch = {
+          success: true,
+          resultsCount: testResults.length,
+          results: testResults
+        };
+        
+        console.log('[eBay Diagnostics] Test search successful:', testResults.length, 'results');
+      } catch (error) {
+        diagnostics.testSearch = {
+          success: false,
+          error: String(error)
+        };
+        console.error('[eBay Diagnostics] Test search failed:', error);
+      }
+    } else {
+      diagnostics.testSearch = {
+        skipped: true,
+        reason: !diagnostics.configuration.isConfigured 
+          ? 'Not configured' 
+          : 'Rate limited'
+      };
+    }
+    
+    console.log('[eBay Diagnostics] Complete:', diagnostics);
+    
+    return c.json(diagnostics);
+  } catch (error) {
+    console.error('[eBay Diagnostics] ❌ Error:', error);
+    return c.json({ 
+      error: 'Diagnostics failed',
+      message: String(error)
+    }, 500);
+  }
+});
+
+// Raw eBay API test - bypasses rate limit and cache
+dealsApp.get('/ebay/raw-test', async (c) => {
+  try {
+    console.log('[eBay Raw Test] Starting raw eBay API call...');
+    
+    const appId = Deno.env.get('EBAY_APP_ID');
+    if (!appId) {
+      return c.json({ error: 'EBAY_APP_ID not configured' }, 400);
+    }
+    
+    const endpoint = 'https://svcs.ebay.com/services/search/FindingService/v1';
+    const params = new URLSearchParams({
+      'OPERATION-NAME': 'findItemsAdvanced',
+      'SERVICE-VERSION': '1.0.0',
+      'SECURITY-APPNAME': appId,
+      'RESPONSE-DATA-FORMAT': 'JSON',
+      'REST-PAYLOAD': '',
+      'keywords': 'honda key',
+      'paginationInput.entriesPerPage': '5',
+      'sortOrder': 'BestMatch',
+      'itemFilter(0).name': 'ListingType',
+      'itemFilter(0).value': 'FixedPrice',
+    });
+    
+    const fullUrl = `${endpoint}?${params.toString()}`;
+    console.log('[eBay Raw Test] Calling eBay API...');
+    
+    const response = await fetch(fullUrl);
+    const responseText = await response.text();
+    
+    console.log('[eBay Raw Test] Response status:', response.status);
+    console.log('[eBay Raw Test] Response body (first 500 chars):', responseText.substring(0, 500));
+    
+    let parsedResponse;
+    try {
+      parsedResponse = JSON.parse(responseText);
+    } catch {
+      parsedResponse = { rawText: responseText };
+    }
+    
+    // Check for errors
+    const errorMessage = parsedResponse?.errorMessage;
+    const searchResult = parsedResponse?.findItemsAdvancedResponse?.[0];
+    const ack = searchResult?.ack?.[0];
+    const errors = searchResult?.errorMessage?.[0]?.error || errorMessage?.[0]?.error || [];
+    
+    console.log('[eBay Raw Test] ACK:', ack);
+    console.log('[eBay Raw Test] Errors:', JSON.stringify(errors, null, 2));
+    
+    return c.json({
+      status: response.status,
+      ack,
+      errors,
+      hasResults: !!searchResult?.searchResult?.[0]?.item,
+      itemCount: searchResult?.searchResult?.[0]?.item?.length || 0,
+      fullResponse: parsedResponse
+    });
+  } catch (error) {
+    console.error('[eBay Raw Test] Error:', error);
+    return c.json({
+      error: 'Test failed',
+      message: String(error)
+    }, 500);
+  }
+});
+
+// ========================================
 // DEAL IMAGES ROUTES
 // ========================================
 
 // Upload deal image
-dealsApp.post('/deals/:id/images', async (c) => {
+dealsApp.post('/:id/images', async (c) => {
   try {
     const user = await getAuthUser(c.req.header('Authorization'));
     if (!user) {
@@ -1306,7 +1504,7 @@ dealsApp.post('/deals/:id/images', async (c) => {
 });
 
 // Upload deal image file
-dealsApp.post('/deals/:id/images/upload', async (c) => {
+dealsApp.post('/:id/images/upload', async (c) => {
   try {
     const user = await getAuthUser(c.req.header('Authorization'));
     if (!user) {
@@ -1470,7 +1668,7 @@ dealsApp.delete('/deal-images/:id', async (c) => {
 });
 
 // Reorder deal images
-dealsApp.put('/deals/:id/images/reorder', async (c) => {
+dealsApp.put('/:id/images/reorder', async (c) => {
   try {
     const user = await getAuthUser(c.req.header('Authorization'));
     if (!user) {
@@ -1521,10 +1719,13 @@ dealsApp.put('/deals/:id/images/reorder', async (c) => {
 // Get user's saved deals
 dealsApp.get('/saved-deals', async (c) => {
   try {
+    console.log('[DEALS] GET /saved-deals - Request received');
     const user = await getAuthUser(c.req.header('Authorization'));
     if (!user) {
+      console.log('[DEALS] GET /saved-deals - Unauthorized (no user)');
       return c.json({ error: 'Unauthorized' }, 401);
     }
+    console.log(`[DEALS] GET /saved-deals - User ID: ${user.id}`);
 
     const retailerFilter = c.req.query('retailer');
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -1533,7 +1734,7 @@ dealsApp.get('/saved-deals', async (c) => {
       .from('saved_deals')
       .select(`
         *,
-        deal:deals!inner(
+        deal:deals(
           *,
           retailer_profile:retailer_profiles(*),
           deal_type:deal_types(*),
@@ -1541,7 +1742,6 @@ dealsApp.get('/saved-deals', async (c) => {
         )
       `)
       .eq('user_id', user.id)
-      .eq('deal.status', 'active')
       .order('created_at', { ascending: false });
 
     if (retailerFilter) {
@@ -1551,9 +1751,16 @@ dealsApp.get('/saved-deals', async (c) => {
     const { data, error } = await query;
     if (error) throw error;
 
-    // Remove saved deals for expired deals
+    // Handle null/empty data
+    if (!data) {
+      console.log('[DEALS] GET /saved-deals - No saved deals found');
+      return c.json({ savedDeals: [] });
+    }
+
+    // Filter for active deals only and remove expired ones
     const now = new Date().toISOString();
-    const expiredSaves = data.filter(s => s.deal.expires_at < now);
+    const activeDeals = data.filter(s => s.deal && s.deal.status === 'active');
+    const expiredSaves = activeDeals.filter(s => s.deal.expires_at < now);
     
     if (expiredSaves.length > 0) {
       await supabase
@@ -1562,16 +1769,20 @@ dealsApp.get('/saved-deals', async (c) => {
         .in('id', expiredSaves.map(s => s.id));
     }
 
-    const activeSaves = data.filter(s => s.deal.expires_at >= now);
+    const activeSaves = activeDeals.filter(s => s.deal.expires_at >= now);
+    console.log(`[DEALS] GET /saved-deals - Returning ${activeSaves.length} active saved deals`);
     return c.json({ savedDeals: activeSaves });
   } catch (error) {
-    console.error('Error fetching saved deals:', error);
-    return c.json({ error: 'Failed to fetch saved deals' }, 500);
+    console.error('[DEALS] GET /saved-deals - Error:', error);
+    return c.json({ 
+      error: 'Failed to fetch saved deals',
+      details: error instanceof Error ? error.message : String(error)
+    }, 500);
   }
 });
 
 // Save a deal
-dealsApp.post('/deals/:id/save', async (c) => {
+dealsApp.post('/:id/save', async (c) => {
   try {
     const user = await getAuthUser(c.req.header('Authorization'));
     if (!user) {
@@ -1605,7 +1816,7 @@ dealsApp.post('/deals/:id/save', async (c) => {
 });
 
 // Unsave a deal
-dealsApp.delete('/deals/:id/save', async (c) => {
+dealsApp.delete('/:id/save', async (c) => {
   try {
     const user = await getAuthUser(c.req.header('Authorization'));
     if (!user) {
@@ -1655,7 +1866,7 @@ dealsApp.post('/saved-deals/bulk-delete', async (c) => {
 });
 
 // Check if deal is saved by user
-dealsApp.get('/deals/:id/is-saved', async (c) => {
+dealsApp.get('/:id/is-saved', async (c) => {
   try {
     const user = await getAuthUser(c.req.header('Authorization'));
     if (!user) {
@@ -1685,7 +1896,7 @@ dealsApp.get('/deals/:id/is-saved', async (c) => {
 // ========================================
 
 // Bulk create deals from CSV (Retailer with CSV permission)
-dealsApp.post('/deals/bulk-upload', async (c) => {
+dealsApp.post('/bulk-upload', async (c) => {
   try {
     const user = await getAuthUser(c.req.header('Authorization'));
     if (!user) {
@@ -2065,6 +2276,87 @@ dealsApp.post('/bulk-archive', async (c) => {
   } catch (error) {
     console.error('Error bulk archiving deals:', error);
     return c.json({ error: 'Failed to bulk archive deals' }, 500);
+  }
+});
+
+// Get single deal (Admin, owner, or public if active)
+// IMPORTANT: This route must be LAST to avoid catching specific routes like /saved-deals
+dealsApp.get('/:id', async (c) => {
+  try {
+    const dealId = c.req.param('id');
+    console.log(`[DEALS] GET /:id - Fetching deal with ID: ${dealId}`);
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    
+    const { data: deal, error } = await supabase
+      .from('deals')
+      .select(`
+        *,
+        retailer_profile:retailer_profiles(*),
+        deal_type:deal_types(*),
+        images:deal_images(*)
+      `)
+      .eq('id', dealId)
+      .single();
+
+    if (error) {
+      console.error(`[DEALS] GET /:id - Database error for deal ${dealId}:`, error);
+      // Handle specific Postgres errors
+      if (error.code === 'PGRST116') {
+        return c.json({ error: `Deal not found: ${dealId}` }, 404);
+      }
+      throw error;
+    }
+    if (!deal) {
+      console.log(`[DEALS] GET /:id - Deal ${dealId} not found in database`);
+      return c.json({ error: `Deal not found: ${dealId}` }, 404);
+    }
+
+    console.log(`[DEALS] GET /:id - Successfully fetched deal ${dealId}: ${deal.title} (status: ${deal.status})`);
+
+    // Check if public can view
+    const user = await getAuthUser(c.req.header('Authorization'));
+    if (!user && deal.status !== 'active') {
+      console.log(`[DEALS] GET /:id - Public user cannot view inactive deal ${dealId}`);
+      return c.json({ error: 'Deal not available to public users' }, 403);
+    }
+
+    // For authenticated users, allow viewing of their saved deals even if expired/archived
+    // Only restrict if deal is not active AND user is not admin/owner
+    if (user && deal.status !== 'active') {
+      const admin = await isAdmin(user.id);
+      const isOwner = deal.retailer_profile?.owner_user_id === user.id;
+      
+      // Check if user has this deal saved
+      const { data: savedDeal } = await supabase
+        .from('saved_deals')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('deal_id', dealId)
+        .single();
+      
+      const hasSaved = !!savedDeal;
+      
+      if (!admin && !isOwner && !hasSaved) {
+        console.log(`[DEALS] GET /:id - User ${user.id} not authorized to view inactive deal ${dealId}`);
+        return c.json({ error: 'You do not have permission to view this deal' }, 403);
+      }
+      
+      console.log(`[DEALS] GET /:id - User ${user.id} authorized (admin: ${admin}, owner: ${isOwner}, saved: ${hasSaved})`);
+    }
+
+    // Increment view count
+    await supabase
+      .from('deals')
+      .update({ view_count: (deal.view_count || 0) + 1 })
+      .eq('id', dealId);
+
+    return c.json({ deal: { ...deal, view_count: (deal.view_count || 0) + 1 } });
+  } catch (error) {
+    console.error('[DEALS] GET /:id - Error fetching deal:', error);
+    return c.json({ 
+      error: 'Failed to fetch deal',
+      details: error instanceof Error ? error.message : String(error)
+    }, 500);
   }
 });
 

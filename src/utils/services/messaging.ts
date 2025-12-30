@@ -119,9 +119,20 @@ export class MessagingService {
   }
 
   // Get messages in a conversation
-  static async getMessages(accessToken: string, conversationId: string): Promise<{ success: boolean; messages: Message[]; error?: string }> {
+  static async getMessages(
+    accessToken: string, 
+    conversationId: string, 
+    limit: number = 10, 
+    before?: string
+  ): Promise<{ success: boolean; messages: Message[]; hasMore?: boolean; error?: string }> {
     try {
-      const response = await fetch(`${API_BASE}/conversations/${conversationId}/messages`, {
+      const params = new URLSearchParams();
+      params.append('limit', limit.toString());
+      if (before) {
+        params.append('before', before);
+      }
+      
+      const response = await fetch(`${API_BASE}/conversations/${conversationId}/messages?${params.toString()}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',

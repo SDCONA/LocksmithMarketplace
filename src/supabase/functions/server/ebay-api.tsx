@@ -1,7 +1,11 @@
 // ========================================
 // EBAY API INTEGRATION
 // Multi-source product search for automotive keys
+// Now using ScraperAPI to bypass IP blocking
+// Uses KV store for persistent caching and rate limit tracking
 // ========================================
+
+import * as kv from './kv_store.tsx';
 
 interface EbayProduct {
   id: string;
@@ -17,13 +21,50 @@ interface EbayProduct {
   location?: string;
 }
 
+interface CachedData {
+  data: EbayProduct[];
+  timestamp: number;
+}
+
+interface RateLimitData {
+  exceeded: boolean;
+  resetTime: number;
+}
+
 export class EbayAPI {
   private appId: string;
+  private devId: string;
+  private certId: string;
+  private scraperApiKey: string;
   private isConfigured: boolean;
+  private cacheDuration: number = 86400000; // 24 hours in milliseconds (increased from 1 hour)
+  private rateLimitDuration: number = 7200000; // 2 hours cooldown (increased from 1 hour)
 
   constructor() {
     this.appId = Deno.env.get('EBAY_APP_ID') || '';
-    this.isConfigured = !!this.appId;
+    this.devId = Deno.env.get('EBAY_DEV_ID') || '';
+    this.certId = Deno.env.get('EBAY_CERT_ID') || '';
+    this.scraperApiKey = Deno.env.get('SCRAPERAPI_KEY') || '';
+    this.isConfigured = !!this.appId && !!this.devId && !!this.certId && !!this.scraperApiKey;
+    
+    // Log configuration status (without exposing keys)
+    console.log('[eBay API Constructor] Checking configuration...');
+    console.log('[eBay API Constructor] Has App ID:', !!this.appId);
+    console.log('[eBay API Constructor] Has Dev ID:', !!this.devId);
+    console.log('[eBay API Constructor] Has Cert ID:', !!this.certId);
+    console.log('[eBay API Constructor] Has ScraperAPI Key:', !!this.scraperApiKey);
+    console.log('[eBay API Constructor] Is Configured:', this.isConfigured);
+    
+    if (this.isConfigured) {
+      console.log('[eBay API] ✅ Fully configured with eBay credentials + ScraperAPI proxy');
+    } else {
+      console.log('[eBay API] Missing credentials:', {
+        hasAppId: !!this.appId,
+        hasDevId: !!this.devId,
+        hasCertId: !!this.certId,
+        hasScraperApiKey: !!this.scraperApiKey
+      });
+    }
   }
 
   /**
@@ -34,21 +75,128 @@ export class EbayAPI {
   }
 
   /**
+   * Check if we're currently rate limited (persisted in KV store)
+   */
+  private async isRateLimited(): Promise<boolean> {
+    try {
+      const rateLimitData = await kv.get<RateLimitData>('ebay_rate_limit');
+      
+      if (!rateLimitData || !rateLimitData.exceeded) {
+        return false;
+      }
+      
+      // Check if cooldown period has passed
+      if (Date.now() > rateLimitData.resetTime) {
+        console.log('[eBay API] Rate limit cooldown complete - resetting');
+        await kv.del('ebay_rate_limit');
+        return false;
+      }
+      
+      const minutesRemaining = Math.ceil((rateLimitData.resetTime - Date.now()) / 60000);
+      console.log(`[eBay API] Rate limit active - ${minutesRemaining} minutes remaining`);
+      return true;
+    } catch (error) {
+      console.error('[eBay API] Error checking rate limit:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Set rate limit in KV store
+   */
+  private async setRateLimited(): Promise<void> {
+    try {
+      const resetTime = Date.now() + this.rateLimitDuration;
+      const resetDate = new Date(resetTime).toISOString();
+      
+      await kv.set('ebay_rate_limit', {
+        exceeded: true,
+        resetTime
+      });
+      
+      console.log(`✅ [eBay API] Rate limit successfully stored in KV database`);
+      console.log(`   → Cooldown until: ${resetDate}`);
+      console.log(`   → Duration: 1 hour (${this.rateLimitDuration}ms)`);
+    } catch (error) {
+      console.error('❌ [eBay API] FAILED to set rate limit in KV store:', error);
+      throw error; // Re-throw so we know if storage failed
+    }
+  }
+
+  /**
+   * Get cached results from KV store
+   */
+  private async getCachedResults(query: string): Promise<EbayProduct[] | null> {
+    try {
+      const cacheKey = `ebay_cache_${query.toLowerCase().trim()}`;
+      const cached = await kv.get<CachedData>(cacheKey);
+      
+      if (cached && Date.now() - cached.timestamp < this.cacheDuration) {
+        console.log(`[eBay API] Using cached results for: "${query}" (${cached.data.length} items)`);
+        return cached.data;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('[eBay API] Error reading cache:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Cache search results in KV store
+   */
+  private async cacheResults(query: string, data: EbayProduct[]): Promise<void> {
+    try {
+      const cacheKey = `ebay_cache_${query.toLowerCase().trim()}`;
+      await kv.set(cacheKey, {
+        data,
+        timestamp: Date.now()
+      });
+      console.log(`[eBay API] Cached ${data.length} results for: "${query}"`);
+    } catch (error) {
+      console.error('[eBay API] Error caching results:', error);
+    }
+  }
+
+  /**
    * Search for automotive keys on eBay
    * @param query - Search query (e.g., "honda civic key", "toyota key fob")
    * @param limit - Maximum results to return (default: 20)
    */
   async searchKeys(query: string, limit: number = 20): Promise<EbayProduct[]> {
+    console.log(`[eBay API] searchKeys called with query="${query}", limit=${limit}`);
+    console.log(`[eBay API] Configuration status: isConfigured=${this.isConfigured}`);
+    
     if (!this.isConfigured) {
-      console.log('eBay API not configured - skipping eBay search');
+      console.log('[eBay API] ❌ Not configured - skipping eBay search. Please check EBAY_APP_ID, EBAY_DEV_ID, EBAY_CERT_ID, and SCRAPERAPI_KEY environment variables.');
       return [];
     }
 
+    // Check if we're rate limited (persistent check)
+    console.log(`[eBay API] Checking if rate limited...`);
+    const isLimited = await this.isRateLimited();
+    console.log(`[eBay API] Rate limited status: ${isLimited}`);
+    
+    if (isLimited) {
+      console.log(`⏸️  [eBay API] Skipping search - rate limit active. Check /deals/ebay/status for details.`);
+      return [];
+    }
+
+    // Check cache first
+    console.log(`[eBay API] Checking cache for query: "${query}"`);
+    const cachedResults = await this.getCachedResults(query);
+    if (cachedResults !== null) {
+      console.log(`[eBay API] ✅ Returning ${cachedResults.length} cached results`);
+      return cachedResults;
+    }
+    console.log(`[eBay API] No cached results found, proceeding with fresh search`);
+
     try {
-      console.log(`[eBay API] Starting search for query: "${query}" with App ID: ${this.appId.substring(0, 10)}...`);
+      console.log(`[eBay API] Starting fresh search for query: "${query}"`);
       
       // eBay Finding API endpoint
-      const endpoint = 'https://svcs.ebay.com/services/search/FindingService/v1';
+      const ebayEndpoint = 'https://svcs.ebay.com/services/search/FindingService/v1';
       
       // Build search query with automotive key filters
       const params = new URLSearchParams({
@@ -69,31 +217,66 @@ export class EbayAPI {
         'itemFilter(1).value(1)': '3000', // Used
       });
 
-      const fullUrl = `${endpoint}?${params.toString()}`;
-      console.log(`[eBay API] Request URL: ${fullUrl.substring(0, 150)}...`);
+      const ebayUrl = `${ebayEndpoint}?${params.toString()}`;
       
-      const response = await fetch(fullUrl);
+      // Route through ScraperAPI to bypass IP blocking
+      // eBay is a protected domain, requires premium=true
+      const scraperApiUrl = `http://api.scraperapi.com?api_key=${this.scraperApiKey}&premium=true&url=${encodeURIComponent(ebayUrl)}`;
+      
+      console.log(`[eBay API] 🔄 Routing through ScraperAPI proxy (premium mode for eBay)...`);
+      
+      const response = await fetch(scraperApiUrl);
       
       console.log(`[eBay API] Response status: ${response.status} ${response.statusText}`);
       
       if (!response.ok) {
+        console.error(`[eBay API] ❌ ScraperAPI request failed: ${response.status}`);
         const errorText = await response.text();
-        console.error(`[eBay API] Error response body: ${errorText}`);
+        console.error(`[eBay API] Error details:`, errorText.substring(0, 500));
         return [];
       }
-
+      
+      // Always parse as JSON (eBay returns JSON even for errors)
       const data = await response.json();
-      console.log(`[eBay API] Response received:`, JSON.stringify(data).substring(0, 500));
+
+      // Check if response contains error in JSON format
+      if (data?.errorMessage) {
+        const errors = data.errorMessage[0]?.error || [];
+        console.error(`[eBay API] API error response:`, JSON.stringify(errors, null, 2));
+        
+        // Check if this is a rate limit error (Error ID 10001)
+        const isRateLimitError = errors.some((err: any) => 
+          err.errorId?.[0] === '10001' && err.domain?.[0] === 'Security'
+        );
+        
+        if (isRateLimitError) {
+          console.warn('🚨 [eBay API] RATE LIMIT EXCEEDED - Setting 2 hour cooldown in KV store');
+          await this.setRateLimited();
+        }
+        
+        return [];
+      }
 
       // Parse eBay response
       const searchResult = data?.findItemsAdvancedResponse?.[0];
       const ack = searchResult?.ack?.[0];
       console.log(`[eBay API] Acknowledgment status: ${ack}`);
       
-      // Check for errors
+      // Check for errors (including rate limiting)
       if (ack === 'Failure' || ack === 'PartialFailure') {
         const errors = searchResult?.errorMessage?.[0]?.error || [];
-        console.error(`[eBay API] API returned errors:`, JSON.stringify(errors));
+        console.error(`[eBay API] API returned errors:`, JSON.stringify(errors, null, 2));
+        
+        // Check if this is a rate limit error (Error ID 10001)
+        const isRateLimitError = errors.some((err: any) => 
+          err.errorId?.[0] === '10001' && err.domain?.[0] === 'Security'
+        );
+        
+        if (isRateLimitError) {
+          console.warn('🚨 [eBay API] RATE LIMIT EXCEEDED - Setting 2 hour cooldown');
+          await this.setRateLimited();
+        }
+        
         return [];
       }
       
@@ -101,6 +284,8 @@ export class EbayAPI {
 
       if (!Array.isArray(items) || items.length === 0) {
         console.log(`[eBay API] No results found for query: ${query}`);
+        // Cache empty results to avoid repeated API calls
+        await this.cacheResults(query, []);
         return [];
       }
 
@@ -132,11 +317,12 @@ export class EbayAPI {
         };
       });
 
-      console.log(`Found ${products.length} eBay products for query: ${query}`);
+      console.log(`[eBay API] ✅ Successfully found ${products.length} products via ScraperAPI for query: "${query}"`);
+      await this.cacheResults(query, products);
       return products;
 
     } catch (error) {
-      console.error('Error searching eBay:', error);
+      console.error('[eBay API] ❌ Unexpected error searching eBay:', error);
       return [];
     }
   }

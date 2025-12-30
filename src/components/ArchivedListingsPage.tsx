@@ -273,7 +273,7 @@ export function ArchivedListingsPage({ user, onBack, onViewListing }: ArchivedLi
                         />
                       )}
                       <div className="flex-1 min-w-0">
-                        <h3 className="mb-1 text-gray-900 truncate">{listing.title}</h3>
+                        <h3 className="mb-1 text-gray-900 break-words line-clamp-2">{listing.title}</h3>
                         <p className="text-gray-500 text-sm line-clamp-2 mb-2">
                           {listing.description}
                         </p>

@@ -5,7 +5,7 @@ import { Badge } from "./ui/badge";
 import { toast } from "sonner";
 import { 
   Heart, ExternalLink, Clock, Tag, ChevronDown, ChevronUp, 
-  Bookmark, Filter, RefreshCw, Store, X, Settings, Upload, Flag, AlertTriangle
+  Bookmark, Filter, RefreshCw, Store, X, Settings, Upload, Flag, AlertTriangle, Share2
 } from "lucide-react";
 import { DealsService } from "../utils/services";
 import { isAdminUser, AuthService, User } from "../utils/auth";
@@ -92,6 +92,21 @@ export function DealsPage({ onNavigateToAdmin, onNavigateToRetailerDeals, onNavi
     }
   }, [excludedRetailers, isLoggedIn]);
 
+  // Handle shared deal link
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const dealId = urlParams.get('dealId');
+    
+    if (dealId && deals.length > 0) {
+      const sharedDeal = deals.find(d => d.id === dealId);
+      if (sharedDeal) {
+        openDealModal(sharedDeal);
+        // Clean up URL without reloading
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  }, [deals]);
+
   const loadDeals = async () => {
     setIsLoading(true);
     try {
@@ -117,22 +132,66 @@ export function DealsPage({ onNavigateToAdmin, onNavigateToRetailerDeals, onNavi
   };
 
   const loadSavedDeals = async () => {
+    // Silently skip if not logged in
+    if (!isLoggedIn) {
+      return;
+    }
+    
     try {
+      // Ensure we have a fresh token before making the request
+      const token = await AuthService.getFreshToken();
+      if (!token) {
+        // User session expired, update login state
+        setIsLoggedIn(false);
+        setSavedDealIds(new Set());
+        return;
+      }
+      
       const savedDeals = await DealsService.getSavedDeals();
       const savedIds = new Set(savedDeals.map((sd: any) => sd.deal.id));
       setSavedDealIds(savedIds);
-    } catch (error) {
-      console.error("Error loading saved deals:", error);
+    } catch (error: any) {
+      // Only log error if it's not an auth issue
+      if (error.message !== 'Unauthorized' && error.message !== 'Authentication required') {
+        console.error("Error loading saved deals:", error);
+      }
+      // If unauthorized, user is not logged in
+      if (error.message === 'Unauthorized' || error.message === 'Authentication required') {
+        setIsLoggedIn(false);
+        setSavedDealIds(new Set());
+      }
     }
   };
 
   const loadUserRetailers = async () => {
+    // Silently skip if not logged in
+    if (!isLoggedIn) {
+      return;
+    }
+    
     try {
+      // Ensure we have a fresh token before making the request
+      const token = await AuthService.getFreshToken();
+      if (!token) {
+        // User session expired, update login state
+        setIsLoggedIn(false);
+        setUserRetailerIds(new Set());
+        return;
+      }
+      
       const profiles = await DealsService.getRetailerProfiles();
       const retailerIds = new Set(profiles.map((p: any) => p.id));
       setUserRetailerIds(retailerIds);
-    } catch (error) {
-      console.error("Error loading user retailers:", error);
+    } catch (error: any) {
+      // Only log error if it's not an auth issue
+      if (error.message !== 'Unauthorized' && error.message !== 'Authentication required') {
+        console.error("Error loading user retailers:", error);
+      }
+      // If unauthorized, user is not logged in
+      if (error.message === 'Unauthorized' || error.message === 'Authentication required') {
+        setIsLoggedIn(false);
+        setUserRetailerIds(new Set());
+      }
     }
   };
 
@@ -535,6 +594,38 @@ function DealCard({ deal, isSaved, onSave, formatTimeRemaining, calculateDiscoun
               ) : (
                 <Heart className="h-5 w-5 text-gray-600" />
               )}
+            </button>
+
+            {/* Share Button */}
+            <button
+              onClick={async (e) => {
+                e.stopPropagation();
+                const shareUrl = `${window.location.origin}${window.location.pathname}?dealId=${deal.id}`;
+                const shareData = {
+                  title: deal.title,
+                  text: `Check out this deal: ${deal.title} - $${deal.price.toFixed(2)}`,
+                  url: shareUrl
+                };
+
+                try {
+                  if (navigator.share) {
+                    await navigator.share(shareData);
+                    toast.success("Deal shared successfully!");
+                  } else {
+                    await navigator.clipboard.writeText(shareUrl);
+                    toast.success("Deal link copied to clipboard!");
+                  }
+                } catch (error: any) {
+                  if (error.name !== 'AbortError') {
+                    console.error('Error sharing:', error);
+                    toast.error("Failed to share deal");
+                  }
+                }
+              }}
+              className="absolute top-[4rem] right-3 p-1 rounded-full hover:scale-110 transition-transform"
+              title="Share deal"
+            >
+              <Share2 className="h-4 w-4 text-white drop-shadow-lg" />
             </button>
 
             {/* Discount Badge */}

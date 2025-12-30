@@ -22,10 +22,15 @@ import {
   User,
   Settings,
   Edit3,
-  Archive
+  Archive,
+  CheckSquare,
+  Square,
+  Trash2,
+  RefreshCw
 } from "lucide-react";
 import { projectId, publicAnonKey } from "../utils/supabase/info";
 import { createClient } from "../utils/supabase/client";
+import { toast } from "sonner";
 
 interface MarketplaceProfilePageProps {
   user: any;
@@ -68,60 +73,79 @@ export function MarketplaceProfilePage({
   const [loadingArchived, setLoadingArchived] = useState(false);
   const [reviews, setReviews] = useState<any[]>([]);
   const [loadingReviews, setLoadingReviews] = useState(false);
+  
+  // Bulk selection states
+  const [selectedListings, setSelectedListings] = useState<Set<string>>(new Set());
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [processingBulkAction, setProcessingBulkAction] = useState(false);
+  
+  // Separate selection states for archived tab
+  const [selectedArchivedListings, setSelectedArchivedListings] = useState<Set<string>>(new Set());
+  const [isArchivedSelectionMode, setIsArchivedSelectionMode] = useState(false);
+  const [processingArchivedBulkAction, setProcessingArchivedBulkAction] = useState(false);
 
   // Filter listings to show only the user's own listings
   const userListings = listings.filter(listing => listing.seller.id === user?.id);
+  
+  // Filter out archived listings from active listings
+  // Only show listings that are NOT in the archivedListings array
+  const archivedIds = new Set(archivedListings.map(l => l.id));
+  const activeUserListings = userListings.filter(listing => !archivedIds.has(listing.id));
+  
+  // Combined listings for selection (active + archived)
+  const allSelectableListings = [...activeUserListings, ...archivedListings];
 
-  // Fetch archived listings
-  useEffect(() => {
-    const fetchArchivedListings = async () => {
-      if (!user) return;
+  // Function to fetch archived listings
+  const fetchArchivedListings = async () => {
+    if (!user) return;
+    
+    try {
+      setLoadingArchived(true);
       
-      try {
-        setLoadingArchived(true);
-        
-        // Get fresh access token from Supabase session
-        const supabase = createClient();
-        const { data: { session } } = await supabase.auth.getSession();
-        const accessToken = session?.access_token;
-        
-        if (!accessToken) {
-          console.log('No access token available for fetching archived listings');
-          setLoadingArchived(false);
-          return;
-        }
-        
-        const response = await fetch(
-          `https://${projectId}.supabase.co/functions/v1/make-server-a7e285ba/listings/archived`,
-          {
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Content-Type': 'application/json'
-            }
-          }
-        );
-
-        if (response.ok) {
-          const data = await response.json();
-          // Transform archived listings to ensure they have the seller object
-          const transformedListings = (data.listings || []).map((listing: any) => ({
-            ...listing,
-            seller: listing.seller || {
-              id: listing.seller_id || user.id,
-              name: `${user.firstName} ${user.lastName}`,
-              avatar: user.avatar,
-              rating: user.rating || 0
-            }
-          }));
-          setArchivedListings(transformedListings);
-        }
-      } catch (error) {
-        console.error('Error fetching archived listings:', error);
-      } finally {
+      // Get fresh access token from Supabase session
+      const supabase = createClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token;
+      
+      if (!accessToken) {
+        console.log('No access token available for fetching archived listings');
         setLoadingArchived(false);
+        return;
       }
-    };
+      
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-a7e285ba/listings/archived`,
+        {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
 
+      if (response.ok) {
+        const data = await response.json();
+        // Transform archived listings to ensure they have the seller object
+        const transformedListings = (data.listings || []).map((listing: any) => ({
+          ...listing,
+          seller: listing.seller || {
+            id: listing.seller_id || user.id,
+            name: `${user.firstName} ${user.lastName}`,
+            avatar: user.avatar,
+            rating: user.rating || 0
+          }
+        }));
+        setArchivedListings(transformedListings);
+      }
+    } catch (error) {
+      console.error('Error fetching archived listings:', error);
+    } finally {
+      setLoadingArchived(false);
+    }
+  };
+
+  // Fetch archived listings on mount
+  useEffect(() => {
     fetchArchivedListings();
   }, [user]);
 
@@ -194,6 +218,264 @@ export function MarketplaceProfilePage({
     lastActive: "" // RESET
   };
 
+  // Bulk selection handlers
+  const toggleSelectAll = () => {
+    if (selectedListings.size === activeUserListings.length) {
+      setSelectedListings(new Set());
+    } else {
+      setSelectedListings(new Set(activeUserListings.map(l => l.id)));
+    }
+  };
+
+  const toggleSelectListing = (listingId: string) => {
+    const newSelected = new Set(selectedListings);
+    if (newSelected.has(listingId)) {
+      newSelected.delete(listingId);
+    } else {
+      newSelected.add(listingId);
+    }
+    setSelectedListings(newSelected);
+  };
+
+  const handleBulkArchive = async () => {
+    if (selectedListings.size === 0) return;
+    
+    setProcessingBulkAction(true);
+    const supabase = createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    const accessToken = session?.access_token;
+
+    if (!accessToken) {
+      toast.error('Authentication error. Please log in again.');
+      setProcessingBulkAction(false);
+      return;
+    }
+
+    let successCount = 0;
+    let errorCount = 0;
+    const archivedIds = new Set<string>();
+
+    try {
+      for (const listingId of Array.from(selectedListings)) {
+        try {
+          const response = await fetch(
+            `https://${projectId}.supabase.co/functions/v1/make-server-a7e285ba/listings/${listingId}/archive`,
+            {
+              method: 'PUT',
+              headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+              }
+            }
+          );
+
+          if (response.ok) {
+            successCount++;
+            archivedIds.add(listingId);
+          } else {
+            errorCount++;
+            const errorText = await response.text();
+            console.error(`Failed to archive listing ${listingId}:`, errorText);
+          }
+        } catch (err) {
+          errorCount++;
+          console.error(`Error archiving listing ${listingId}:`, err);
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`Successfully archived ${successCount} listing${successCount !== 1 ? 's' : ''}`);
+        // Refresh archived listings
+        await fetchArchivedListings();
+      }
+      
+      if (errorCount > 0) {
+        toast.error(`Failed to archive ${errorCount} listing${errorCount !== 1 ? 's' : ''}`);
+      }
+    } catch (error) {
+      console.error('Error archiving listings:', error);
+      toast.error('An error occurred while archiving listings');
+    } finally {
+      setProcessingBulkAction(false);
+      setSelectedListings(new Set());
+      setIsSelectionMode(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedListings.size === 0) return;
+    if (!window.confirm(`Are you sure you want to delete ${selectedListings.size} listing${selectedListings.size !== 1 ? 's' : ''}? This action cannot be undone.`)) {
+      return;
+    }
+
+    setProcessingBulkAction(true);
+    let successCount = 0;
+    let errorCount = 0;
+    
+    try {
+      for (const listingId of Array.from(selectedListings)) {
+        try {
+          if (onDeleteListing) {
+            await onDeleteListing(listingId);
+            successCount++;
+          }
+        } catch (err) {
+          errorCount++;
+          console.error(`Error deleting listing ${listingId}:`, err);
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`Successfully deleted ${successCount} listing${successCount !== 1 ? 's' : ''}`);
+      }
+      
+      if (errorCount > 0) {
+        toast.error(`Failed to delete ${errorCount} listing${errorCount !== 1 ? 's' : ''}}`);
+      }
+    } catch (error) {
+      console.error('Error deleting listings:', error);
+      toast.error('An error occurred while deleting listings');
+    } finally {
+      setProcessingBulkAction(false);
+      setSelectedListings(new Set());
+      setIsSelectionMode(false);
+    }
+  };
+
+  const cancelSelection = () => {
+    setSelectedListings(new Set());
+    setIsSelectionMode(false);
+  };
+
+  // Archived bulk selection handlers
+  const toggleSelectAllArchived = () => {
+    if (selectedArchivedListings.size === archivedListings.length) {
+      setSelectedArchivedListings(new Set());
+    } else {
+      setSelectedArchivedListings(new Set(archivedListings.map(l => l.id)));
+    }
+  };
+
+  const toggleSelectArchivedListing = (listingId: string) => {
+    const newSelected = new Set(selectedArchivedListings);
+    if (newSelected.has(listingId)) {
+      newSelected.delete(listingId);
+    } else {
+      newSelected.add(listingId);
+    }
+    setSelectedArchivedListings(newSelected);
+  };
+
+  const handleBulkRenew = async () => {
+    if (selectedArchivedListings.size === 0) return;
+    
+    setProcessingArchivedBulkAction(true);
+    const supabase = createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    const accessToken = session?.access_token;
+
+    if (!accessToken) {
+      toast.error('Authentication error. Please log in again.');
+      setProcessingArchivedBulkAction(false);
+      return;
+    }
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      for (const listingId of Array.from(selectedArchivedListings)) {
+        try {
+          const response = await fetch(
+            `https://${projectId}.supabase.co/functions/v1/make-server-a7e285ba/listings/${listingId}/unarchive`,
+            {
+              method: 'PUT',
+              headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+              }
+            }
+          );
+
+          if (response.ok) {
+            successCount++;
+          } else {
+            errorCount++;
+            const errorText = await response.text();
+            console.error(`Failed to renew listing ${listingId}:`, errorText);
+          }
+        } catch (err) {
+          errorCount++;
+          console.error(`Error renewing listing ${listingId}:`, err);
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`Successfully renewed ${successCount} listing${successCount !== 1 ? 's' : ''}`);
+        // Refresh archived listings
+        await fetchArchivedListings();
+      }
+      
+      if (errorCount > 0) {
+        toast.error(`Failed to renew ${errorCount} listing${errorCount !== 1 ? 's' : ''}`);
+      }
+    } catch (error) {
+      console.error('Error renewing listings:', error);
+      toast.error('An error occurred while renewing listings');
+    } finally {
+      setProcessingArchivedBulkAction(false);
+      setSelectedArchivedListings(new Set());
+      setIsArchivedSelectionMode(false);
+    }
+  };
+
+  const handleBulkDeleteArchived = async () => {
+    if (selectedArchivedListings.size === 0) return;
+    if (!window.confirm(`Are you sure you want to delete ${selectedArchivedListings.size} archived listing${selectedArchivedListings.size !== 1 ? 's' : ''}? This action cannot be undone.`)) {
+      return;
+    }
+
+    setProcessingArchivedBulkAction(true);
+    let successCount = 0;
+    let errorCount = 0;
+    
+    try {
+      for (const listingId of Array.from(selectedArchivedListings)) {
+        try {
+          if (onDeleteListing) {
+            await onDeleteListing(listingId);
+            successCount++;
+          }
+        } catch (err) {
+          errorCount++;
+          console.error(`Error deleting listing ${listingId}:`, err);
+        }
+      }
+
+      if (successCount > 0) {
+        toast.success(`Successfully deleted ${successCount} listing${successCount !== 1 ? 's' : ''}`);
+        // Refresh archived listings
+        await fetchArchivedListings();
+      }
+      
+      if (errorCount > 0) {
+        toast.error(`Failed to delete ${errorCount} listing${errorCount !== 1 ? 's' : ''}`);
+      }
+    } catch (error) {
+      console.error('Error deleting listings:', error);
+      toast.error('An error occurred while deleting listings');
+    } finally {
+      setProcessingArchivedBulkAction(false);
+      setSelectedArchivedListings(new Set());
+      setIsArchivedSelectionMode(false);
+    }
+  };
+
+  const cancelArchivedSelection = () => {
+    setSelectedArchivedListings(new Set());
+    setIsArchivedSelectionMode(false);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="container mx-auto px-4 py-6 max-w-4xl">
@@ -250,7 +532,7 @@ export function MarketplaceProfilePage({
               <div className="flex-1">
                 <div className="grid grid-cols-2 gap-4 mb-4">
                   <div className="text-center">
-                    <div className="text-2xl font-semibold text-gray-900">{userListings.length}</div>
+                    <div className="text-2xl font-semibold text-gray-900">{activeUserListings.length}</div>
                     <div className="text-sm text-gray-600">Active Listings</div>
                   </div>
                   <div className="text-center">
@@ -286,44 +568,91 @@ export function MarketplaceProfilePage({
 
         {/* Profile Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="listings">My Listings ({userListings.length})</TabsTrigger>
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="listings">My Listings ({activeUserListings.length})</TabsTrigger>
+            <TabsTrigger value="archived">Archived ({archivedListings.length})</TabsTrigger>
             <TabsTrigger value="reviews">Reviews ({profileData.totalReviews})</TabsTrigger>
           </TabsList>
 
           {/* Listings Tab */}
           <TabsContent value="listings" className="space-y-4">
             {userListings.length > 0 || archivedListings.length > 0 ? (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {/* Active Listings */}
-                {userListings.map((listing) => (
-                  <MarketplaceCard
-                    key={listing.id}
-                    item={listing}
-                    onMessage={onMessage}
-                    onFavorite={onFavorite}
-                    onViewListing={onViewListing}
-                    onViewProfile={() => {}} // Not needed for own profile
-                    isLoggedIn={isLoggedIn}
-                    onAuthRequired={onAuthRequired}
-                    currentUser={user}
-                    onPromote={onPromoteListing}
-                    onEditListing={onEditListing}
-                    onDeleteListing={onDeleteListing}
-                  />
-                ))}
-                
-                {/* Archived Listings */}
-                {archivedListings.map((listing) => (
-                  <div key={listing.id} className="relative">
-                    <Badge 
-                      variant="secondary" 
-                      className="absolute top-2 left-2 z-10 bg-gray-500 text-white"
+              <>
+                {/* Bulk Actions Toolbar */}
+                {!isSelectionMode ? (
+                  <div className="flex justify-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsSelectionMode(true)}
+                      className="flex items-center gap-2"
                     >
-                      <Archive className="h-3 w-3 mr-1" />
-                      Archived
-                    </Badge>
+                      <CheckSquare className="h-4 w-4" />
+                      Select Listings
+                    </Button>
+                  </div>
+                ) : (
+                  <Card className="bg-blue-50 border-blue-200">
+                    <CardContent className="p-4">
+                      <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={toggleSelectAll}
+                            className="flex items-center gap-2"
+                          >
+                            {selectedListings.size === activeUserListings.length && activeUserListings.length > 0 ? (
+                              <CheckSquare className="h-4 w-4" />
+                            ) : (
+                              <Square className="h-4 w-4" />
+                            )}
+                            Select All
+                          </Button>
+                          <span className="text-sm font-medium text-gray-700">
+                            {selectedListings.size} listing{selectedListings.size !== 1 ? 's' : ''} selected
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleBulkArchive}
+                            disabled={selectedListings.size === 0 || processingBulkAction}
+                            className="flex items-center gap-2"
+                          >
+                            <Archive className="h-4 w-4" />
+                            Archive
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={handleBulkDelete}
+                            disabled={selectedListings.size === 0 || processingBulkAction}
+                            className="flex items-center gap-2"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Delete
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={cancelSelection}
+                            disabled={processingBulkAction}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {/* Active Listings */}
+                  {activeUserListings.map((listing) => (
                     <MarketplaceCard
+                      key={listing.id}
                       item={listing}
                       onMessage={onMessage}
                       onFavorite={onFavorite}
@@ -332,26 +661,15 @@ export function MarketplaceProfilePage({
                       isLoggedIn={isLoggedIn}
                       onAuthRequired={onAuthRequired}
                       currentUser={user}
-                      footerAction={
-                        onNavigateToArchive && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onNavigateToArchive();
-                            }}
-                            className="w-full flex items-center justify-center gap-2"
-                          >
-                            <Archive className="h-3 w-3" />
-                            Go to Archive
-                          </Button>
-                        )
-                      }
+                      onPromote={onPromoteListing}
+                      onEditListing={onEditListing}
+                      onDeleteListing={onDeleteListing}
+                      onSelectListing={isSelectionMode ? toggleSelectListing : undefined}
+                      isSelected={selectedListings.has(listing.id)}
                     />
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              </>
             ) : (
               <Card>
                 <CardContent className="text-center py-12">
@@ -363,6 +681,130 @@ export function MarketplaceProfilePage({
                   <Button onClick={onCreateListing}>
                     Create Your First Listing
                   </Button>
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* Archived Tab */}
+          <TabsContent value="archived" className="space-y-4">
+            {loadingArchived ? (
+              <Card>
+                <CardContent className="text-center py-12">
+                  <Package className="h-12 w-12 text-gray-400 mx-auto mb-4 animate-pulse" />
+                  <p className="text-gray-600">Loading archived listings...</p>
+                </CardContent>
+              </Card>
+            ) : archivedListings.length > 0 ? (
+              <>
+                {/* Bulk Actions Toolbar for Archived */}
+                {!isArchivedSelectionMode ? (
+                  <div className="flex justify-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsArchivedSelectionMode(true)}
+                      className="flex items-center gap-2"
+                    >
+                      <CheckSquare className="h-4 w-4" />
+                      Select Listings
+                    </Button>
+                  </div>
+                ) : (
+                  <Card className="bg-green-50 border-green-200">
+                    <CardContent className="p-4">
+                      <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={toggleSelectAllArchived}
+                            className="flex items-center gap-2"
+                          >
+                            {selectedArchivedListings.size === archivedListings.length ? (
+                              <CheckSquare className="h-4 w-4" />
+                            ) : (
+                              <Square className="h-4 w-4" />
+                            )}
+                            Select All
+                          </Button>
+                          <span className="text-sm font-medium text-gray-700">
+                            {selectedArchivedListings.size} listing{selectedArchivedListings.size !== 1 ? 's' : ''} selected
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={handleBulkRenew}
+                            disabled={selectedArchivedListings.size === 0 || processingArchivedBulkAction}
+                            className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                            Renew
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={handleBulkDeleteArchived}
+                            disabled={selectedArchivedListings.size === 0 || processingArchivedBulkAction}
+                            className="flex items-center gap-2"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                            Delete
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={cancelArchivedSelection}
+                            disabled={processingArchivedBulkAction}
+                          >
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {archivedListings.map((listing) => (
+                    <div key={listing.id} className="relative">
+                      {!isArchivedSelectionMode && (
+                        <Badge 
+                          variant="secondary" 
+                          className="absolute top-2 left-2 z-10 bg-gray-500 text-white"
+                        >
+                          <Archive className="h-3 w-3 mr-1" />
+                          Archived
+                        </Badge>
+                      )}
+                      <MarketplaceCard
+                        item={listing}
+                        onMessage={onMessage}
+                        onFavorite={onFavorite}
+                        onViewListing={onViewListing}
+                        onViewProfile={() => {}}
+                        isLoggedIn={isLoggedIn}
+                        onAuthRequired={onAuthRequired}
+                        currentUser={user}
+                        onEditListing={onEditListing}
+                        onDeleteListing={onDeleteListing}
+                        onSelectListing={isArchivedSelectionMode ? toggleSelectArchivedListing : undefined}
+                        isSelected={selectedArchivedListings.has(listing.id)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <Card>
+                <CardContent className="text-center py-12">
+                  <Archive className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No archived listings</h3>
+                  <p className="text-gray-600">
+                    Archived listings will appear here. You can archive listings from the "My Listings" tab.
+                  </p>
                 </CardContent>
               </Card>
             )}

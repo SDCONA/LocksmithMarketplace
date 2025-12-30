@@ -49,7 +49,8 @@ import {
   Store,
   BellOff,
   Shield,
-  Smile
+  Smile,
+  AlertTriangle
 } from "lucide-react";
 import { toast } from "sonner";
 import { MessagingService } from "../utils/services";
@@ -61,10 +62,20 @@ import { projectId, publicAnonKey } from "../utils/supabase/info";
 interface Message {
   id: string;
   senderId: string;
+  sender_id?: string;
   content: string;
   timestamp: string;
+  created_at?: string;
   type: "text" | "image";
   image_urls?: string[];
+  is_read?: boolean;
+  metadata?: {
+    report_reason?: string;
+    admin_reason?: string;
+    resolution_notes?: string;
+    content_type?: string;
+    action?: string;
+  };
 }
 
 interface Conversation {
@@ -132,6 +143,10 @@ export function MessagesPage({ onBack, onViewProfile, onViewListings, onViewList
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   
+  // Pagination state
+  const [hasMoreMessages, setHasMoreMessages] = useState(false);
+  const [isLoadingMoreMessages, setIsLoadingMoreMessages] = useState(false);
+  
   // Review state
   const [messagesSentCount, setMessagesSentCount] = useState(0);
   const [hasReviewedUser, setHasReviewedUser] = useState(false);
@@ -142,6 +157,7 @@ export function MessagesPage({ onBack, onViewProfile, onViewListings, onViewList
   
   // Ref for auto-scrolling to bottom of messages
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
   // Get current user ID on mount
   useEffect(() => {
@@ -166,7 +182,15 @@ export function MessagesPage({ onBack, onViewProfile, onViewListings, onViewList
       const result = await MessagingService.getConversations(accessToken);
       if (result.success && result.conversations) {
         const transformedConversations = result.conversations.map((conv: any) => {
-          const otherUser = conv.buyer || conv.seller;
+          // Determine the other participant (not the current user)
+          const otherUser = conv.buyer?.id === currentUserId ? conv.seller : conv.buyer;
+          
+          // Safety check for null user
+          if (!otherUser) {
+            console.warn('No other user found for conversation:', conv.id);
+            return null;
+          }
+          
           return {
             id: conv.id,
             buyer: conv.buyer,
@@ -188,8 +212,18 @@ export function MessagesPage({ onBack, onViewProfile, onViewListings, onViewList
               image: conv.listing.images?.[0] || ''
             } : undefined
           };
-        });
-        setConversations(transformedConversations);
+        }).filter(Boolean);
+        
+        // Deduplicate conversations by ID (safeguard against backend returning duplicates)
+        const uniqueConversations = Array.from(
+          new Map(transformedConversations.map(conv => [conv.id, conv])).values()
+        );
+        
+        if (uniqueConversations.length !== transformedConversations.length) {
+          console.warn(`⚠️ Removed ${transformedConversations.length - uniqueConversations.length} duplicate conversations`);
+        }
+        
+        setConversations(uniqueConversations);
       }
     } catch (error) {
       console.log('Error reloading conversations:', error);
@@ -215,10 +249,21 @@ export function MessagesPage({ onBack, onViewProfile, onViewListings, onViewList
 
       try {
         const result = await MessagingService.getConversations(accessToken);
+        console.log('📨 Raw conversations from backend:', result.conversations);
         if (result.success && result.conversations) {
           // Transform backend conversations to match UI format
           const transformedConversations = result.conversations.map((conv: any) => {
-            const otherUser = conv.buyer || conv.seller;
+            console.log('🔄 Processing conversation:', conv.id, 'seller_id:', conv.seller_id);
+            // Determine the other participant (not the current user)
+            const user = result.currentUserId || currentUserId;
+            const otherUser = conv.buyer?.id === user ? conv.seller : conv.buyer;
+            
+            // Safety check for null user
+            if (!otherUser) {
+              console.warn('No other user found for conversation:', conv.id);
+              return null;
+            }
+            
             return {
               id: conv.id,
               buyer: conv.buyer,
@@ -240,8 +285,18 @@ export function MessagesPage({ onBack, onViewProfile, onViewListings, onViewList
                 image: conv.listing.images?.[0] || ''
               } : undefined
             };
-          });
-          setConversations(transformedConversations);
+          }).filter(Boolean);
+          
+          // Deduplicate conversations by ID (safeguard against backend returning duplicates)
+          const uniqueConversations = Array.from(
+            new Map(transformedConversations.map(conv => [conv.id, conv])).values()
+          );
+          
+          if (uniqueConversations.length !== transformedConversations.length) {
+            console.warn(`⚠️ Removed ${transformedConversations.length - uniqueConversations.length} duplicate conversations`);
+          }
+          
+          setConversations(uniqueConversations);
         } else if (result.error) {
           console.error('Failed to load conversations:', result.error);
         }
@@ -287,13 +342,14 @@ export function MessagesPage({ onBack, onViewProfile, onViewListings, onViewList
 
       setIsLoadingMessages(true);
       setHasReviewedUser(false); // Reset review state when switching conversations
-      console.log(`📨 Loading messages for conversation: ${selectedConversation}`);
+      console.log(`📨 Loading last 10 messages for conversation: ${selectedConversation}`);
       
       try {
-        const result = await MessagingService.getMessages(accessToken, selectedConversation);
+        const result = await MessagingService.getMessages(accessToken, selectedConversation, 10);
         if (!cancelled && result.success && result.messages) {
           setMessages(result.messages);
-          console.log(`✅ Loaded ${result.messages.length} messages`);
+          setHasMoreMessages(result.hasMore || false);
+          console.log(`✅ Loaded ${result.messages.length} messages, hasMore: ${result.hasMore}`);
           
           // Reload conversations to update unread counts (messages were just marked as read)
           reloadConversations();
@@ -337,12 +393,63 @@ export function MessagesPage({ onBack, onViewProfile, onViewListings, onViewList
     };
   }, [selectedConversation, reloadConversations]);
 
-  // Auto-scroll to bottom when messages load or change
+  // Load more messages when scrolling up
+  const loadMoreMessages = async () => {
+    if (!selectedConversation || isLoadingMoreMessages || !hasMoreMessages || messages.length === 0) {
+      return;
+    }
+    
+    const accessToken = await AuthService.getFreshToken();
+    if (!accessToken) return;
+    
+    setIsLoadingMoreMessages(true);
+    const oldestMessage = messages[0]; // First message in the array
+    
+    try {
+      console.log(`📨 Loading more messages before: ${oldestMessage.id}`);
+      const result = await MessagingService.getMessages(accessToken, selectedConversation, 10, oldestMessage.id);
+      
+      if (result.success && result.messages) {
+        // Save scroll position before updating
+        const container = messagesContainerRef.current;
+        const oldScrollHeight = container?.scrollHeight || 0;
+        
+        // Prepend older messages
+        setMessages(prev => [...result.messages, ...prev]);
+        setHasMoreMessages(result.hasMore || false);
+        console.log(`✅ Loaded ${result.messages.length} more messages, hasMore: ${result.hasMore}`);
+        
+        // Restore scroll position after DOM update
+        setTimeout(() => {
+          if (container) {
+            const newScrollHeight = container.scrollHeight;
+            container.scrollTop = newScrollHeight - oldScrollHeight;
+          }
+        }, 0);
+      }
+    } catch (error) {
+      console.error('Error loading more messages:', error);
+      toast.error('Failed to load more messages');
+    } finally {
+      setIsLoadingMoreMessages(false);
+    }
+  };
+  
+  // Handle scroll to detect when user reaches top
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const target = e.currentTarget;
+    // Load more when scrolled within 100px of top
+    if (target.scrollTop < 100 && hasMoreMessages && !isLoadingMoreMessages) {
+      loadMoreMessages();
+    }
+  };
+
+  // Auto-scroll to bottom ONLY when opening a conversation or sending a message
   useEffect(() => {
-    if (messagesEndRef.current) {
+    if (messagesEndRef.current && !isLoadingMoreMessages) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages]);
+  }, [selectedConversation]); // Only trigger on conversation change, not all message updates
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -369,29 +476,37 @@ export function MessagesPage({ onBack, onViewProfile, onViewListings, onViewList
       if (result.success) {
         setNewMessage("");
         setSelectedImages([]);
-        // Refresh messages to show the new one
-        const messagesResult = await MessagingService.getMessages(accessToken, selectedConversation);
-        console.log('📬 Refreshed messages:', messagesResult);
-        if (messagesResult.success) {
-          setMessages(messagesResult.messages);
+        // Just add the new message to the list instead of reloading all
+        if (result.message) {
+          setMessages(prev => [...prev, result.message]);
+          console.log('📬 Added new message to list');
           
-          // Count messages sent by current user
-          const userMessages = messagesResult.messages.filter((msg: any) => msg.sender_id === currentUserId);
-          const newMessageCount = userMessages.length;
-          setMessagesSentCount(newMessageCount);
+          // Scroll to bottom after sending
+          setTimeout(() => {
+            if (messagesEndRef.current) {
+              messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+            }
+          }, 100);
           
-          // Check if user has already reviewed after reaching 10 messages
-          if (newMessageCount >= 10 && selectedConversation) {
-            const conversation = conversations.find(c => c.id === selectedConversation);
-            if (conversation) {
-              const otherParticipant = conversation.buyer?.id === currentUserId ? conversation.seller : conversation.buyer;
-              if (otherParticipant) {
-                checkIfAlreadyReviewed(otherParticipant.id);
+          // Update message count
+          if (result.message.sender_id === currentUserId) {
+            const newCount = messagesSentCount + 1;
+            setMessagesSentCount(newCount);
+            
+            // Check if user has already reviewed after reaching 10 messages
+            if (newCount >= 10 && selectedConversation) {
+              const conversation = conversations.find(c => c.id === selectedConversation);
+              if (conversation) {
+                const otherParticipant = conversation.buyer?.id === currentUserId ? conversation.seller : conversation.buyer;
+                if (otherParticipant) {
+                  checkIfAlreadyReviewed(otherParticipant.id);
+                }
               }
             }
           }
+          
+          toast.success('Message sent!');
         }
-        toast.success('Message sent!');
       } else {
         console.error('❌ Send message error:', result.error);
         toast.error(result.error || 'Failed to send message');
@@ -601,7 +716,7 @@ export function MessagesPage({ onBack, onViewProfile, onViewListings, onViewList
   }, [selectedConversations]);
 
   const handleDeleteSelected = useCallback(async () => {
-    const user = getCurrentUser();
+    const user = await getCurrentUser();
     if (!user?.accessToken) {
       toast.error('Please sign in to delete conversations');
       return;
@@ -630,7 +745,7 @@ export function MessagesPage({ onBack, onViewProfile, onViewListings, onViewList
   }, [selectedConversations, selectedConversation]);
 
   const handleDeleteConversation = useCallback(async (id: string) => {
-    const user = getCurrentUser();
+    const user = await getCurrentUser();
     if (!user?.accessToken) {
       toast.error('Please sign in to delete conversation');
       return;
@@ -973,11 +1088,7 @@ export function MessagesPage({ onBack, onViewProfile, onViewListings, onViewList
                         </span>
                       </div>
                       
-                      {conversation.lastMessage && conversation.lastMessage !== "no messages yet" && (
-                        <p className={`text-sm truncate mb-2 ${isUnread ? 'text-gray-900 font-medium' : 'text-gray-600'}`}>
-                          {conversation.lastMessage}
-                        </p>
-                      )}
+
                       
                       {conversation.listingItem && (
                         <div className="flex items-center space-x-2 bg-gray-50 rounded-xl p-2 border border-gray-200">
@@ -1152,7 +1263,30 @@ export function MessagesPage({ onBack, onViewProfile, onViewListings, onViewList
             )}
 
             {/* Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gradient-to-br from-gray-50/80 via-blue-50/30 to-gray-50/80">
+            <div 
+              ref={messagesContainerRef}
+              onScroll={handleScroll}
+              className="flex-1 overflow-y-auto p-4 space-y-4 bg-gradient-to-br from-gray-50/80 via-blue-50/30 to-gray-50/80"
+            >
+              {/* Load More Messages Indicator */}
+              {hasMoreMessages && !isLoadingMessages && (
+                <div className="text-center py-2">
+                  {isLoadingMoreMessages ? (
+                    <div className="inline-flex items-center space-x-2 text-sm text-gray-500">
+                      <div className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+                      <span>Loading older messages...</span>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={loadMoreMessages}
+                      className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      Load older messages
+                    </button>
+                  )}
+                </div>
+              )}
+              
               {isLoadingMessages ? (
                 // Skeleton Loading State for Messages
                 <div className="space-y-4">
@@ -1177,18 +1311,6 @@ export function MessagesPage({ onBack, onViewProfile, onViewListings, onViewList
               ) : (
                 messages.map((message, index) => {
                   const isCurrentUser = currentUserId && message.sender_id === currentUserId;
-                  
-                  // DEBUG: Log to check if comparison is working
-                  if (index === 0) {
-                    console.log('🔍 Message sender comparison:', {
-                      currentUserId,
-                      currentUserIdType: typeof currentUserId,
-                      messageSenderId: message.sender_id,
-                      messageSenderIdType: typeof message.sender_id,
-                      isCurrentUser,
-                      areEqual: message.sender_id === currentUserId,
-                    });
-                  }
                   
                   const conversation = conversations.find(c => c.id === selectedConversation);
                   const otherParticipant = conversation && currentUserId ? 

@@ -26,8 +26,9 @@ const categories = [
   "Key Programming Tools", 
   "Locksmith Supplies",
   "Transponder Chips",
-  "Key Blanks",
   "Security Systems",
+  "Cutting Maschines",
+  "Business for sale",
   "Other Automotive"
 ];
 
