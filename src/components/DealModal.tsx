@@ -10,6 +10,7 @@ import { ReportService } from "../utils/services/reports";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "./ui/dialog";
 import { Textarea } from "./ui/textarea";
 import { Label } from "./ui/label";
+import { trackDealView, trackDealRedirect } from "../utils/analytics";
 
 export interface DealModalData {
   id: string;
@@ -332,6 +333,7 @@ export function DealModal({
               target="_blank"
               rel="noopener noreferrer"
               className="flex-1"
+              onClick={() => trackDealRedirect(deal.id)}
             >
               <Button className="w-full" size="lg">
                 View Deal

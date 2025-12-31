@@ -2360,4 +2360,184 @@ dealsApp.get('/:id', async (c) => {
   }
 });
 
+// ========================================
+// ANALYTICS TRACKING ROUTES
+// ========================================
+
+// Track deal view or redirect click
+dealsApp.post('/track-analytics', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { dealId, eventType } = body; // eventType: 'view' or 'redirect'
+
+    if (!dealId || !eventType) {
+      return c.json({ error: 'dealId and eventType are required' }, 400);
+    }
+
+    if (!['view', 'redirect'].includes(eventType)) {
+      return c.json({ error: 'eventType must be "view" or "redirect"' }, 400);
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Get the deal to find retailer_profile_id
+    const { data: deal, error: dealError } = await supabase
+      .from('deals')
+      .select('id, retailer_profile_id')
+      .eq('id', dealId)
+      .single();
+
+    if (dealError || !deal) {
+      return c.json({ error: 'Deal not found' }, 404);
+    }
+
+    // Try to get user if authenticated (optional)
+    const authHeader = c.req.header('Authorization');
+    const user = await getAuthUser(authHeader);
+
+    // Insert analytics record
+    const { error: insertError } = await supabase
+      .from('deal_analytics_a7e285ba')
+      .insert({
+        deal_id: dealId,
+        retailer_profile_id: deal.retailer_profile_id,
+        event_type: eventType,
+        user_id: user?.id || null
+      });
+
+    if (insertError) {
+      console.error('[DEALS] Error inserting analytics:', insertError);
+      return c.json({ error: 'Failed to track analytics' }, 500);
+    }
+
+    return c.json({ success: true });
+  } catch (error) {
+    console.error('[DEALS] Track analytics error:', error);
+    return c.json({ 
+      error: 'Internal server error tracking analytics',
+      details: error instanceof Error ? error.message : String(error)
+    }, 500);
+  }
+});
+
+// Get analytics data for admin panel (with date filtering)
+dealsApp.get('/admin/analytics', async (c) => {
+  try {
+    const authHeader = c.req.header('Authorization');
+    const user = await getAuthUser(authHeader);
+
+    if (!user) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    // Check if user is admin
+    const adminStatus = await isAdmin(user.id);
+    if (!adminStatus) {
+      return c.json({ error: 'Admin access required' }, 403);
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Get date filter from query params
+    const filter = c.req.query('filter') || 'all'; // 'day', 'week', 'month', 'year', 'all'
+    
+    let startDate = null;
+    const now = new Date();
+
+    switch (filter) {
+      case 'day':
+        startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        break;
+      case 'week':
+        const weekAgo = new Date(now);
+        weekAgo.setDate(now.getDate() - 7);
+        startDate = weekAgo;
+        break;
+      case 'month':
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        break;
+      case 'year':
+        startDate = new Date(now.getFullYear(), 0, 1);
+        break;
+      default:
+        startDate = null; // All time
+    }
+
+    // Build query
+    let query = supabase
+      .from('deal_analytics_a7e285ba')
+      .select('retailer_profile_id, event_type, created_at');
+
+    if (startDate) {
+      query = query.gte('created_at', startDate.toISOString());
+    }
+
+    const { data: analytics, error: analyticsError } = await query;
+
+    if (analyticsError) {
+      console.error('[DEALS] Error fetching analytics:', analyticsError);
+      return c.json({ error: 'Failed to fetch analytics' }, 500);
+    }
+
+    // Get all retailer profiles
+    const { data: retailers, error: retailersError } = await supabase
+      .from('retailer_profiles')
+      .select('id, company_name')
+      .order('company_name');
+
+    if (retailersError) {
+      console.error('[DEALS] Error fetching retailers:', retailersError);
+      return c.json({ error: 'Failed to fetch retailers' }, 500);
+    }
+
+    // Aggregate analytics by retailer
+    const analyticsMap: Record<string, { views: number; redirects: number; companyName: string }> = {};
+
+    // Initialize all retailers with 0
+    retailers.forEach(retailer => {
+      analyticsMap[retailer.id] = {
+        views: 0,
+        redirects: 0,
+        companyName: retailer.company_name
+      };
+    });
+
+    // Count views and redirects
+    analytics?.forEach(record => {
+      if (analyticsMap[record.retailer_profile_id]) {
+        if (record.event_type === 'view') {
+          analyticsMap[record.retailer_profile_id].views++;
+        } else if (record.event_type === 'redirect') {
+          analyticsMap[record.retailer_profile_id].redirects++;
+        }
+      }
+    });
+
+    // Convert to array format
+    const result = Object.entries(analyticsMap).map(([retailerId, data]) => ({
+      retailerId,
+      companyName: data.companyName,
+      views: data.views,
+      redirects: data.redirects
+    }));
+
+    // Sort by views descending
+    result.sort((a, b) => b.views - a.views);
+
+    return c.json({ 
+      success: true, 
+      analytics: result,
+      filter: filter,
+      startDate: startDate?.toISOString() || null
+    });
+
+  } catch (error) {
+    console.error('[DEALS] Get analytics error:', error);
+    return c.json({ 
+      error: 'Internal server error fetching analytics',
+      details: error instanceof Error ? error.message : String(error)
+    }, 500);
+  }
+});
+
 export default dealsApp;

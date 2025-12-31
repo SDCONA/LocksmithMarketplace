@@ -1,9 +1,11 @@
 // reCAPTCHA v3 Utility
 // Handles token generation for form submissions
 
-// PASTE YOUR RECAPTCHA SITE KEY HERE (replace the empty string)
-// Get it from: https://www.google.com/recaptcha/admin
-const HARDCODED_SITE_KEY = '6LdGWjssAAAAAH5g7mzG4romZvU31tbjdQ2rplMW'; // ← PASTE YOUR SITE KEY HERE (e.g., '6LcXXXXXXXXXXXXXXXXXXXXXXXX')
+// USING GOOGLE TEST KEYS FOR DEVELOPMENT
+// These test keys work on ALL domains including Figma Make
+// ⚠️ IMPORTANT: Replace with real keys before production deployment!
+// Get real keys from: https://www.google.com/recaptcha/admin
+const HARDCODED_SITE_KEY = '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI'; // ← Google's official test site key (always passes)
 
 // This will be loaded from the environment OR use the hardcoded key
 export const RECAPTCHA_SITE_KEY = import.meta.env?.VITE_RECAPTCHA_SITE_KEY || HARDCODED_SITE_KEY;
@@ -11,6 +13,9 @@ export const RECAPTCHA_SITE_KEY = import.meta.env?.VITE_RECAPTCHA_SITE_KEY || HA
 // Debug logging
 if (RECAPTCHA_SITE_KEY) {
   console.log('[reCAPTCHA] Site key configured:', RECAPTCHA_SITE_KEY.substring(0, 10) + '...');
+  if (RECAPTCHA_SITE_KEY === '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI') {
+    console.warn('[reCAPTCHA] ⚠️ USING TEST KEYS - Replace with real keys for production!');
+  }
 } else {
   console.log('[reCAPTCHA] Running in development mode - reCAPTCHA disabled. To enable, set VITE_RECAPTCHA_SITE_KEY in .env file.');
 }

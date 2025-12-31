@@ -3,6 +3,7 @@ import { cors } from "npm:hono/cors";
 import { logger } from "npm:hono/logger";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import dealsApp from "./deals-routes.tsx";
+import cronApp from "./cron-routes.tsx";
 import { sendAdminWarning } from "./admin-warning-helper.tsx";
 import { verifyRecaptcha } from "./recaptcha-verify.tsx";
 
@@ -5156,6 +5157,11 @@ app.delete("/make-server-a7e285ba/admin/banner-positions/:positionId", async (c)
 // DEALS ROUTES
 // =====================================================
 app.route('/make-server-a7e285ba/deals', dealsApp);
+
+// =====================================================
+// CRON ROUTES (for scheduled jobs)
+// =====================================================
+app.route('/make-server-a7e285ba', cronApp);
 
 // =====================================================
 // REPORTS ROUTES

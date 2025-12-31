@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Textarea } from "./ui/textarea";
 import { Label } from "./ui/label";
 import { DealModal, DealModalData } from "./DealModal";
+import { trackDealView } from "../utils/analytics";
 
 interface Deal {
   id: string;
@@ -268,6 +269,8 @@ export function DealsPage({ onNavigateToAdmin, onNavigateToRetailerDeals, onNavi
 
   const openDealModal = (deal: Deal) => {
     setSelectedDeal(deal);
+    // Track deal view
+    trackDealView(deal.id);
   };
 
   const closeDealModal = () => {
@@ -385,7 +388,7 @@ export function DealsPage({ onNavigateToAdmin, onNavigateToRetailerDeals, onNavi
                   </Button>
                 )}
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 lg:grid-cols-3 gap-2">
                 {retailers.map((retailer) => {
                   const isExcluded = excludedRetailers.includes(retailer.id);
                   return (

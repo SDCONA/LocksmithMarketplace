@@ -55,6 +55,7 @@ import { RetailerProfilesAdmin } from "./deals/RetailerProfilesAdmin";
 import { DealsManagementAdmin } from "./deals/DealsManagementAdmin";
 import { ReportService, Report, ReportDetails, ReportUser } from "../utils/services/reports";
 import { SecurityTestingPage } from "./SecurityTestingPage";
+import { DealAnalyticsAdmin } from "./deals/DealAnalyticsAdmin";
 
 interface AdminPageProps {
   onBack: () => void;
@@ -925,11 +926,12 @@ export function AdminPage({ onBack }: AdminPageProps) {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid grid-cols-4 lg:grid-cols-9 mb-6">
+          <TabsList className="grid grid-cols-4 lg:grid-cols-10 mb-6">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="users">Users</TabsTrigger>
             <TabsTrigger value="retailer-profiles">Retailers</TabsTrigger>
             <TabsTrigger value="retailer-banners">Banners</TabsTrigger>
+            <TabsTrigger value="analytics">Analytics</TabsTrigger>
             <TabsTrigger value="vehicles">Vehicles</TabsTrigger>
             <TabsTrigger value="reports">Reports</TabsTrigger>
             <TabsTrigger value="policy">Policy</TabsTrigger>
@@ -1400,6 +1402,11 @@ export function AdminPage({ onBack }: AdminPageProps) {
                 </Table>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Analytics Tab */}
+          <TabsContent value="analytics">
+            <DealAnalyticsAdmin />
           </TabsContent>
 
           {/* Vehicle Database Tab */}

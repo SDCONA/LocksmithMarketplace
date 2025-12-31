@@ -3439,6 +3439,10 @@
     opacity: 0;
   }
 
+  .opacity-20 {
+    opacity: .2;
+  }
+
   .opacity-50 {
     opacity: .5;
   }
@@ -5608,8 +5612,8 @@
   }
 
   @media (width >= 64rem) {
-    .lg\:grid-cols-9 {
-      grid-template-columns: repeat(9, minmax(0, 1fr));
+    .lg\:grid-cols-10 {
+      grid-template-columns: repeat(10, minmax(0, 1fr));
     }
   }
 
