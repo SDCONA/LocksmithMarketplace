@@ -546,7 +546,7 @@ function DealCard({ deal, isSaved, onSave, formatTimeRemaining, calculateDiscoun
             <img
               src={primaryImage}
               alt={deal.title}
-              className="w-full h-full object-contain"
+              className="w-full h-full object-contain bg-white"
             />
             
             {/* Image Navigation */}

@@ -309,7 +309,7 @@ export function RetailerProfilesAdmin() {
                             <img
                               src={profile.logo_url}
                               alt={profile.company_name}
-                              className="w-10 h-10 rounded object-cover"
+                              className="w-10 h-10 rounded object-fill"
                             />
                           ) : (
                             <div className="w-10 h-10 rounded bg-gray-100 flex items-center justify-center">
