@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { 
   Heart, ExternalLink, Clock, Store, X, Flag, AlertTriangle, RefreshCw, ChevronLeft, ChevronRight
 } from "lucide-react";
-import { AuthService } from "../utils/auth";
+import { AuthService, isAdminUser, User } from "../utils/auth";
 import { ReportService } from "../utils/services/reports";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "./ui/dialog";
 import { Textarea } from "./ui/textarea";
@@ -53,6 +53,8 @@ interface DealModalProps {
   formatTimeRemaining: (expiresAt: string) => string;
   calculateDiscount: (price: number, originalPrice: number) => number;
   isLoggedIn: boolean;
+  currentUser?: User | null;
+  userRetailerIds?: Set<string>;
 }
 
 export function DealModal({ 
@@ -62,7 +64,9 @@ export function DealModal({
   onClose, 
   formatTimeRemaining, 
   calculateDiscount, 
-  isLoggedIn 
+  isLoggedIn,
+  currentUser,
+  userRetailerIds = new Set()
 }: DealModalProps) {
   const hasImages = deal.images && deal.images.length > 0;
   const hasMultipleImages = deal.images && deal.images.length > 1;
@@ -78,6 +82,7 @@ export function DealModal({
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [initialDistance, setInitialDistance] = useState(0);
   const [initialScale, setInitialScale] = useState(1);
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
 
   const openFullscreenImage = (index: number) => {
     setCurrentImageIndex(index);
@@ -242,7 +247,7 @@ export function DealModal({
                   ))}
                 </div>
               ) : (
-                <div className="relative bg-gray-100 rounded-lg aspect-video">
+                <div className="relative bg-gray-100 rounded-lg aspect-[10/10]">
                   <img
                     src={deal.images[0].image_url}
                     alt={deal.title}
@@ -267,7 +272,7 @@ export function DealModal({
               <img
                 src={deal.retailer_profile.logo_url}
                 alt={deal.retailer_profile.company_name}
-                className="w-10 h-10 rounded object-cover"
+                className="w-10 h-10 rounded object-contain"
               />
             ) : (
               <div className="w-10 h-10 rounded bg-gray-200 flex items-center justify-center">
@@ -290,22 +295,16 @@ export function DealModal({
           {/* Description */}
           {deal.description && (
             <p className="text-gray-700 mb-4 leading-relaxed">
-              {deal.description}
+              {isDescriptionExpanded ? deal.description : deal.description.slice(0, 100) + (deal.description.length > 100 ? '...' : '')}
+              {deal.description.length > 100 && (
+                <button
+                  className="text-blue-500 ml-2"
+                  onClick={() => setIsDescriptionExpanded(!isDescriptionExpanded)}
+                >
+                  {isDescriptionExpanded ? 'Show less' : 'Show more'}
+                </button>
+              )}
             </p>
-          )}
-
-          {/* Deal Type */}
-          {deal.deal_type && (
-            <Badge
-              variant="outline"
-              className="mb-4"
-              style={{
-                borderColor: deal.deal_type.color,
-                color: deal.deal_type.color,
-              }}
-            >
-              {deal.deal_type.name}
-            </Badge>
           )}
 
           {/* Price Section */}
@@ -321,10 +320,12 @@ export function DealModal({
           </div>
 
           {/* Time Remaining */}
-          <div className="flex items-center gap-2 text-orange-600 mb-6">
-            <Clock className="h-5 w-5" />
-            <span className="font-medium text-lg">{formatTimeRemaining(deal.expires_at)}</span>
-          </div>
+          {(isAdminUser(currentUser) || userRetailerIds.has(deal.retailer_profile.id)) && (
+            <div className="flex items-center gap-2 text-orange-600 mb-6">
+              <Clock className="h-5 w-5" />
+              <span className="font-medium text-lg">{formatTimeRemaining(deal.expires_at)}</span>
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="flex gap-3 mb-4">

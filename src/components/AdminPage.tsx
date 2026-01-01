@@ -51,6 +51,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { BannerPositionsAdmin } from "./BannerPositionsAdmin";
 import { RetailerBannersAdmin } from "./RetailerBannersAdmin";
 import { PromotionalBannersAdmin } from "./PromotionalBannersAdmin";
+import { DealsBannersAdmin } from "./DealsBannersAdmin";
 import { RetailerProfilesAdmin } from "./deals/RetailerProfilesAdmin";
 import { DealsManagementAdmin } from "./deals/DealsManagementAdmin";
 import { ReportService, Report, ReportDetails, ReportUser } from "../utils/services/reports";
@@ -1291,7 +1292,8 @@ export function AdminPage({ onBack }: AdminPageProps) {
             <Tabs defaultValue="retailer-positions">
               <TabsList className="mb-4">
                 <TabsTrigger value="retailer-positions">Retailer Positions</TabsTrigger>
-                <TabsTrigger value="promotional-banners">Promotional Banners</TabsTrigger>
+                <TabsTrigger value="promotional-banners">Marketplace Banners</TabsTrigger>
+                <TabsTrigger value="deals-banners">Deals Banners</TabsTrigger>
               </TabsList>
 
               <TabsContent value="retailer-positions">
@@ -1300,6 +1302,10 @@ export function AdminPage({ onBack }: AdminPageProps) {
 
               <TabsContent value="promotional-banners">
                 <PromotionalBannersAdmin />
+              </TabsContent>
+
+              <TabsContent value="deals-banners">
+                <DealsBannersAdmin />
               </TabsContent>
             </Tabs>
           </TabsContent>

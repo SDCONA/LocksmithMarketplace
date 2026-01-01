@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
@@ -8,6 +8,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Separator } from "./ui/separator";
 import { Badge } from "./ui/badge";
+import { toast } from "sonner";
+import { UserPreferencesService, UserPreferences } from "../utils/services/settings";
+import { AuthService } from "../utils/auth";
 import { 
   ArrowLeft, 
   Bell, 
@@ -22,7 +25,8 @@ import {
   Lock,
   Trash2,
   Download,
-  HelpCircle
+  HelpCircle,
+  Loader2
 } from "lucide-react";
 
 interface SettingsPageProps {
@@ -32,20 +36,100 @@ interface SettingsPageProps {
 }
 
 export function SettingsPage({ user, onBack, onUpdateUser }: SettingsPageProps) {
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  
+  // Notification Preferences
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [pushNotifications, setPushNotifications] = useState(true);
   const [messageNotifications, setMessageNotifications] = useState(true);
   const [listingNotifications, setListingNotifications] = useState(true);
-  const [profileVisibility, setProfileVisibility] = useState("public");
+  const [dealNotifications, setDealNotifications] = useState(true);
+  
+  // Privacy Settings
+  const [profileVisibility, setProfileVisibility] = useState<'public' | 'users' | 'private'>("public");
   const [showEmail, setShowEmail] = useState(false);
   const [showPhone, setShowPhone] = useState(false);
-  const [language, setLanguage] = useState("en");
-  const [currency, setCurrency] = useState("USD");
-  const [theme, setTheme] = useState("light");
+  
+  // Regional Preferences
+  const [language, setLanguage] = useState<'en' | 'es' | 'fr' | 'de'>("en");
+  const [currency, setCurrency] = useState<'USD' | 'EUR' | 'GBP' | 'CAD'>("USD");
+  
+  // Appearance
+  const [theme, setTheme] = useState<'light' | 'dark' | 'system'>("light");
 
-  const handleSaveSettings = () => {
-    // In a real app, this would save to backend
-    console.log("Settings saved");
+  // Load preferences on mount
+  useEffect(() => {
+    loadPreferences();
+  }, []);
+
+  const loadPreferences = async () => {
+    try {
+      setIsLoading(true);
+      const token = await AuthService.getFreshToken();
+      if (!token) {
+        toast.error("Please sign in to access settings");
+        onBack();
+        return;
+      }
+
+      const preferences = await UserPreferencesService.getPreferences(token);
+      
+      // Update state with loaded preferences
+      setEmailNotifications(preferences.email_notifications);
+      setPushNotifications(preferences.push_notifications);
+      setMessageNotifications(preferences.message_notifications);
+      setListingNotifications(preferences.listing_notifications);
+      setDealNotifications(preferences.deal_notifications);
+      setProfileVisibility(preferences.profile_visibility);
+      setShowEmail(preferences.show_email);
+      setShowPhone(preferences.show_phone);
+      setLanguage(preferences.language);
+      setCurrency(preferences.currency);
+      setTheme(preferences.theme);
+
+      console.log("✅ User preferences loaded successfully");
+    } catch (error: any) {
+      console.error("❌ Error loading preferences:", error);
+      toast.error(error.message || "Failed to load preferences");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSaveSettings = async () => {
+    try {
+      setIsSaving(true);
+      const token = await AuthService.getFreshToken();
+      if (!token) {
+        toast.error("Please sign in to save settings");
+        return;
+      }
+
+      const updates: Partial<UserPreferences> = {
+        email_notifications: emailNotifications,
+        push_notifications: pushNotifications,
+        message_notifications: messageNotifications,
+        listing_notifications: listingNotifications,
+        deal_notifications: dealNotifications,
+        profile_visibility: profileVisibility,
+        show_email: showEmail,
+        show_phone: showPhone,
+        language: language,
+        currency: currency,
+        theme: theme,
+      };
+
+      await UserPreferencesService.updatePreferences(token, updates);
+      
+      console.log("✅ User preferences saved successfully");
+      toast.success("Settings saved successfully!");
+    } catch (error: any) {
+      console.error("❌ Error saving preferences:", error);
+      toast.error(error.message || "Failed to save settings");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleDeleteAccount = () => {
@@ -83,299 +167,109 @@ export function SettingsPage({ user, onBack, onUpdateUser }: SettingsPageProps) 
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-6">
-        <Tabs defaultValue="notifications" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="notifications">Notifications</TabsTrigger>
-            <TabsTrigger value="privacy">Privacy</TabsTrigger>
-            <TabsTrigger value="preferences">Preferences</TabsTrigger>
-            <TabsTrigger value="account">Account</TabsTrigger>
-          </TabsList>
-
-          {/* Notifications Tab */}
-          <TabsContent value="notifications" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Bell className="h-5 w-5" />
-                  <span>Notification Preferences</span>
-                </CardTitle>
-                <CardDescription>
-                  Choose how you want to be notified about activity
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Email Notifications</Label>
-                    <p className="text-sm text-gray-600">Receive email updates about your activity</p>
-                  </div>
-                  <Switch 
-                    checked={emailNotifications} 
-                    onCheckedChange={setEmailNotifications}
-                  />
-                </div>
-
-                <Separator />
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Push Notifications</Label>
-                    <p className="text-sm text-gray-600">Get push notifications on your device</p>
-                  </div>
-                  <Switch 
-                    checked={pushNotifications} 
-                    onCheckedChange={setPushNotifications}
-                  />
-                </div>
-
-                <Separator />
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Message Notifications</Label>
-                    <p className="text-sm text-gray-600">Get notified when you receive new messages</p>
-                  </div>
-                  <Switch 
-                    checked={messageNotifications} 
-                    onCheckedChange={setMessageNotifications}
-                  />
-                </div>
-
-                <Separator />
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Listing Notifications</Label>
-                    <p className="text-sm text-gray-600">Get notified about your listing activity</p>
-                  </div>
-                  <Switch 
-                    checked={listingNotifications} 
-                    onCheckedChange={setListingNotifications}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Privacy Tab */}
-          <TabsContent value="privacy" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Shield className="h-5 w-5" />
-                  <span>Privacy Settings</span>
-                </CardTitle>
-                <CardDescription>
-                  Control who can see your information
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="space-y-2">
-                  <Label>Profile Visibility</Label>
-                  <Select value={profileVisibility} onValueChange={setProfileVisibility}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="public">Public - Anyone can view</SelectItem>
-                      <SelectItem value="users">Registered Users Only</SelectItem>
-                      <SelectItem value="private">Private - Hidden</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <Separator />
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Show Email Address</Label>
-                    <p className="text-sm text-gray-600">Make your email visible to other users</p>
-                  </div>
-                  <Switch 
-                    checked={showEmail} 
-                    onCheckedChange={setShowEmail}
-                  />
-                </div>
-
-                <Separator />
-
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
-                    <Label>Show Phone Number</Label>
-                    <p className="text-sm text-gray-600">Make your phone number visible to other users</p>
-                  </div>
-                  <Switch 
-                    checked={showPhone} 
-                    onCheckedChange={setShowPhone}
-                  />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Lock className="h-5 w-5" />
-                  <span>Security</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Button variant="outline" className="w-full justify-start">
-                  <Lock className="h-4 w-4 mr-2" />
-                  Change Password
-                </Button>
-                <Button variant="outline" className="w-full justify-start">
-                  <Smartphone className="h-4 w-4 mr-2" />
-                  Two-Factor Authentication
-                </Button>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Preferences Tab */}
-          <TabsContent value="preferences" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <Globe className="h-5 w-5" />
-                  <span>Regional Preferences</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Language</Label>
-                    <Select value={language} onValueChange={setLanguage}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="en">English</SelectItem>
-                        <SelectItem value="es">Español</SelectItem>
-                        <SelectItem value="fr">Français</SelectItem>
-                        <SelectItem value="de">Deutsch</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Currency</Label>
-                    <Select value={currency} onValueChange={setCurrency}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="USD">USD ($)</SelectItem>
-                        <SelectItem value="EUR">EUR (€)</SelectItem>
-                        <SelectItem value="GBP">GBP (£)</SelectItem>
-                        <SelectItem value="CAD">CAD ($)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Appearance</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <Label>Theme</Label>
-                  <Select value={theme} onValueChange={setTheme}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="light">Light</SelectItem>
-                      <SelectItem value="dark">Dark</SelectItem>
-                      <SelectItem value="system">System</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Account Tab */}
-          <TabsContent value="account" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center space-x-2">
-                  <User className="h-5 w-5" />
-                  <span>Account Information</span>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>First Name</Label>
-                    <Input defaultValue={user?.firstName} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Last Name</Label>
-                    <Input defaultValue={user?.lastName} />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Email Address</Label>
-                  <Input defaultValue={user?.email} type="email" />
-                </div>
-                <div className="space-y-2">
-                  <Label>Phone Number</Label>
-                  <Input defaultValue={user?.phone} type="tel" />
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Account Actions</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Button 
-                  variant="outline" 
-                  className="w-full justify-start"
-                  onClick={handleDownloadData}
-                >
-                  <Download className="h-4 w-4 mr-2" />
-                  Download Your Data
-                </Button>
-                
-                <Button 
-                  variant="outline" 
-                  className="w-full justify-start"
-                >
-                  <HelpCircle className="h-4 w-4 mr-2" />
-                  Help & Support
-                </Button>
-
-                <Separator />
-
-                <Button 
-                  variant="destructive" 
-                  className="w-full justify-start"
-                  onClick={handleDeleteAccount}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  Delete Account
-                </Button>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-
-        <div className="mt-8 flex justify-end space-x-4">
-          <Button variant="outline" onClick={onBack}>
-            Cancel
-          </Button>
-          <Button onClick={handleSaveSettings}>
-            Save Changes
-          </Button>
+      {/* Loading State */}
+      {isLoading ? (
+        <div className="container mx-auto px-4 py-12 flex flex-col items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600 mb-4" />
+          <p className="text-gray-600">Loading your preferences...</p>
         </div>
-      </div>
+      ) : (
+        <div className="container mx-auto px-4 py-6">
+          <Tabs defaultValue="notifications" className="space-y-6">
+            <TabsList className="grid w-full grid-cols-1">
+              <TabsTrigger value="notifications">Notifications</TabsTrigger>
+            </TabsList>
+
+            {/* Notifications Tab */}
+            <TabsContent value="notifications" className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center space-x-2">
+                    <Bell className="h-5 w-5" />
+                    <span>Notification Preferences</span>
+                  </CardTitle>
+                  <CardDescription>
+                    Choose how you want to be notified about activity
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>Email Notifications</Label>
+                      <p className="text-sm text-gray-600">Receive email updates about your activity</p>
+                    </div>
+                    <Switch 
+                      checked={emailNotifications} 
+                      onCheckedChange={setEmailNotifications}
+                    />
+                  </div>
+
+                  <Separator />
+
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>Push Notifications</Label>
+                      <p className="text-sm text-gray-600">Get push notifications on your device</p>
+                    </div>
+                    <Switch 
+                      checked={pushNotifications} 
+                      onCheckedChange={setPushNotifications}
+                    />
+                  </div>
+
+                  <Separator />
+
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>Message Notifications</Label>
+                      <p className="text-sm text-gray-600">Get notified when you receive new messages</p>
+                    </div>
+                    <Switch 
+                      checked={messageNotifications} 
+                      onCheckedChange={setMessageNotifications}
+                    />
+                  </div>
+
+                  <Separator />
+
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>Listing Notifications</Label>
+                      <p className="text-sm text-gray-600">Get notified about your listing activity</p>
+                    </div>
+                    <Switch 
+                      checked={listingNotifications} 
+                      onCheckedChange={setListingNotifications}
+                    />
+                  </div>
+
+                  <Separator />
+
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>Deal Notifications</Label>
+                      <p className="text-sm text-gray-600">Get notified about deals and offers</p>
+                    </div>
+                    <Switch 
+                      checked={dealNotifications} 
+                      onCheckedChange={setDealNotifications}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
+
+          <div className="mt-8 flex justify-end space-x-4">
+            <Button variant="outline" onClick={onBack}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveSettings} disabled={isSaving}>
+              {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save Changes"}
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

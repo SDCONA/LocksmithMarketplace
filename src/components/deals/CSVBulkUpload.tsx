@@ -12,7 +12,6 @@ import { DealsService } from "../../utils/services";
 
 interface CSVBulkUploadProps {
   profile: any;
-  dealTypes: any[];
   onSuccess: () => void;
 }
 
@@ -32,7 +31,7 @@ interface ValidationError {
   message: string;
 }
 
-export function CSVBulkUpload({ profile, dealTypes, onSuccess }: CSVBulkUploadProps) {
+export function CSVBulkUpload({ profile, onSuccess }: CSVBulkUploadProps) {
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [parsedDeals, setParsedDeals] = useState<ParsedDeal[]>([]);

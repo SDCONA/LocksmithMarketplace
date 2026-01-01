@@ -8,6 +8,7 @@ import { User, Mail, Lock, Phone, MapPin, Loader2, AlertCircle, CheckCircle2 } f
 import { AuthService } from "../utils/auth";
 import { toast } from "sonner";
 import { executeRecaptcha } from "../utils/recaptcha";
+import { projectId, publicAnonKey } from "../utils/supabase/info";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -27,6 +28,13 @@ interface ValidationErrors {
 
 export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
   const [activeTab, setActiveTab] = useState("login");
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
+  const [showVerificationCode, setShowVerificationCode] = useState(false);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [resetCode, setResetCode] = useState("");
+  const [resetEmail, setResetEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [loginForm, setLoginForm] = useState({ email: "", password: "" });
   const [registerForm, setRegisterForm] = useState({
     firstName: "",
@@ -42,6 +50,35 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
   const [touchedFields, setTouchedFields] = useState<Set<string>>(new Set());
+
+  // Password strength validation
+  const [passwordStrength, setPasswordStrength] = useState({
+    minLength: false,
+    hasUppercase: false,
+    hasLowercase: false,
+    hasNumber: false,
+    hasSpecialChar: false
+  });
+
+  // Validate password strength
+  const validatePassword = (password: string) => {
+    return {
+      minLength: password.length >= 8,
+      hasUppercase: /[A-Z]/.test(password),
+      hasLowercase: /[a-z]/.test(password),
+      hasNumber: /[0-9]/.test(password),
+      hasSpecialChar: /[!@#$%^&*(),.?":{}|<>_\-+=[\]\\\/;'`~]/.test(password)
+    };
+  };
+
+  // Check if password is strong enough
+  const isPasswordStrong = (strength: typeof passwordStrength) => {
+    return strength.minLength && 
+           strength.hasUppercase && 
+           strength.hasLowercase && 
+           strength.hasNumber && 
+           strength.hasSpecialChar;
+  };
 
   // Validation functions
   const validateEmail = (email: string): string | undefined => {
@@ -68,15 +105,6 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
   const validateCity = (city: string): string | undefined => {
     if (!city) return "City is required";
     if (city.length < 2) return "City name must be at least 2 characters";
-    return undefined;
-  };
-
-  const validatePassword = (password: string): string | undefined => {
-    if (!password) return "Password is required";
-    if (password.length < 8) return "Password must be at least 8 characters";
-    if (!/(?=.*[a-z])/.test(password)) return "Password must contain a lowercase letter";
-    if (!/(?=.*[A-Z])/.test(password)) return "Password must contain an uppercase letter";
-    if (!/(?=.*\d)/.test(password)) return "Password must contain a number";
     return undefined;
   };
 
@@ -123,6 +151,12 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
   const handleFieldChange = (field: string, value: string) => {
     setRegisterForm({ ...registerForm, [field]: value });
 
+    // Always update password strength indicator immediately
+    if (field === 'password') {
+      const strength = validatePassword(value);
+      setPasswordStrength(strength);
+    }
+
     // Only validate if field has been touched
     if (touchedFields.has(field)) {
       const errors = { ...validationErrors };
@@ -144,7 +178,9 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
           errors.city = validateCity(value);
           break;
         case 'password':
-          errors.password = validatePassword(value);
+          const passwordStrength = validatePassword(value);
+          setPasswordStrength(passwordStrength);
+          errors.password = isPasswordStrong(passwordStrength) ? undefined : "Password must be at least 8 characters long, contain an uppercase letter, a lowercase letter, a number, and a special character";
           if (registerForm.confirmPassword) {
             errors.confirmPassword = validateConfirmPassword(value, registerForm.confirmPassword);
           }
@@ -218,19 +254,25 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
         recaptchaToken: recaptchaToken
       });
 
-      if (response.success && response.user) {
-        console.log('Signup response user data:', response.user);
+      if (response.success) {
+        console.log('Signup response:', response);
         
-        // Check if manual sign-in is required
-        if (response.requiresManualSignIn) {
+        // Check if email verification is required
+        if (response.requiresEmailVerification) {
+          toast.success("Account created successfully!", {
+            description: "Please check your email to verify your account. You can also enter the verification code below.",
+            duration: 6000,
+          });
+          setShowVerificationCode(true);
+          setResetEmail(registerForm.email);
+        } else if (response.requiresManualSignIn) {
           toast.success("Account created successfully!", {
             description: "Please sign in with your credentials.",
             duration: 4000,
           });
           setActiveTab("login");
-          // Pre-fill the email in the sign-in form
           setLoginForm(prev => ({ ...prev, email: registerForm.email }));
-        } else {
+        } else if (response.user) {
           // Auto-signin was successful
           onLogin(response.user);
           onClose();
@@ -262,6 +304,338 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
       setIsLoading(false);
     }
   };
+
+  const handleRequestPasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
+      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-a7e285ba/request-password-reset`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${publicAnonKey}`
+        },
+        body: JSON.stringify({ email: resetEmail })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success("Check your email!", {
+          description: "If an account exists, you'll receive a password reset link. You can also enter the reset code below.",
+          duration: 6000
+        });
+        setShowPasswordReset(true);
+      } else {
+        toast.error("Request failed", {
+          description: data.error || "Could not process request"
+        });
+      }
+    } catch (error) {
+      console.error("Password reset request error:", error);
+      toast.error("Request failed", {
+        description: "An unexpected error occurred"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (newPassword !== confirmNewPassword) {
+      toast.error("Passwords don't match", {
+        description: "Please make sure both passwords are the same"
+      });
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-a7e285ba/reset-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${publicAnonKey}`
+        },
+        body: JSON.stringify({ 
+          code: resetCode,
+          newPassword 
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success("Password reset successful!", {
+          description: "You can now sign in with your new password."
+        });
+        setShowPasswordReset(false);
+        setResetCode("");
+        setNewPassword("");
+        setConfirmNewPassword("");
+        setResetEmail("");
+        setActiveTab("login");
+      } else {
+        toast.error("Reset failed", {
+          description: data.error || "Could not reset password"
+        });
+      }
+    } catch (error) {
+      console.error("Password reset error:", error);
+      toast.error("Reset failed", {
+        description: "An unexpected error occurred"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    try {
+      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-a7e285ba/verify-email`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${publicAnonKey}`
+        },
+        body: JSON.stringify({ code: verificationCode })
+      });
+
+      const data = await response.json();
+
+      if (data.success && data.user) {
+        toast.success("Email verified!", {
+          description: "Your account is now active. Welcome to Locksmith Marketplace!"
+        });
+        onLogin(data.user);
+        onClose();
+        setShowVerificationCode(false);
+        setVerificationCode("");
+      } else {
+        toast.error("Verification failed", {
+          description: data.error || "Invalid verification code"
+        });
+      }
+    } catch (error) {
+      console.error("Email verification error:", error);
+      toast.error("Verification failed", {
+        description: "An unexpected error occurred"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResendVerification = async () => {
+    setIsLoading(true);
+
+    try {
+      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-a7e285ba/resend-verification`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${publicAnonKey}`
+        },
+        body: JSON.stringify({ email: resetEmail })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success("Verification email sent!", {
+          description: "Please check your inbox for the new verification code."
+        });
+      } else {
+        toast.error("Request failed", {
+          description: data.error || "Could not resend verification email"
+        });
+      }
+    } catch (error) {
+      console.error("Resend verification error:", error);
+      toast.error("Request failed", {
+        description: "An unexpected error occurred"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // If showing verification code entry
+  if (showVerificationCode) {
+    return (
+      <Dialog open={isOpen} onOpenChange={() => {
+        setShowVerificationCode(false);
+        onClose();
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Verify Your Email</DialogTitle>
+            <DialogDescription>
+              We've sent a 6-digit code to {resetEmail}. Enter it below to activate your account.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <form onSubmit={handleVerifyEmail} className="space-y-4">
+            <div className="relative">
+              <Input
+                type="text"
+                placeholder="Enter 6-digit code"
+                value={verificationCode}
+                onChange={(e) => setVerificationCode(e.target.value)}
+                maxLength={6}
+                className="text-center text-2xl tracking-widest font-mono"
+                required
+              />
+            </div>
+            
+            <Button type="submit" className="w-full" disabled={isLoading || verificationCode.length !== 6}>
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Verifying...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                  Verify Email
+                </>
+              )}
+            </Button>
+            
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={handleResendVerification}
+                disabled={isLoading}
+                className="text-sm text-blue-600 hover:text-blue-800 underline"
+              >
+                Didn't receive the code? Resend
+              </button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  // If showing password reset form
+  if (showPasswordReset) {
+    return (
+      <Dialog open={isOpen} onOpenChange={() => {
+        setShowPasswordReset(false);
+        onClose();
+      }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset Your Password</DialogTitle>
+            <DialogDescription>
+              Enter the 6-digit code sent to your email and choose a new password.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <form onSubmit={handleResetPassword} className="space-y-4">
+            <div className="relative">
+              <Input
+                type="text"
+                placeholder="Enter 6-digit code"
+                value={resetCode}
+                onChange={(e) => setResetCode(e.target.value)}
+                maxLength={6}
+                className="text-center text-2xl tracking-widest font-mono"
+                required
+              />
+            </div>
+            
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                type="password"
+                placeholder="New password"
+                className="pl-10"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                required
+              />
+            </div>
+            
+            <div className="relative">
+              <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                type="password"
+                placeholder="Confirm new password"
+                className="pl-10"
+                value={confirmNewPassword}
+                onChange={(e) => setConfirmNewPassword(e.target.value)}
+                required
+              />
+            </div>
+            
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Resetting...
+                </>
+              ) : (
+                'Reset Password'
+              )}
+            </Button>
+            
+            <div className="text-center space-y-2">
+              <button
+                type="button"
+                onClick={async () => {
+                  setIsLoading(true);
+                  try {
+                    const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-a7e285ba/request-password-reset`, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${publicAnonKey}`
+                      },
+                      body: JSON.stringify({ email: resetEmail })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                      toast.success("New code sent!", {
+                        description: "Check your email for a new reset code."
+                      });
+                    }
+                  } catch (error) {
+                    toast.error("Failed to resend code");
+                  } finally {
+                    setIsLoading(false);
+                  }
+                }}
+                disabled={isLoading}
+                className="text-sm text-blue-600 hover:text-blue-800 underline"
+              >
+                Didn't receive the code? Resend
+              </button>
+              <br />
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPasswordReset(false);
+                  setActiveTab("login");
+                }}
+                className="text-sm text-gray-600 hover:text-gray-800"
+              >
+                Back to login
+              </button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -305,6 +679,19 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                   onChange={(e) => setLoginForm({...loginForm, password: e.target.value})}
                   required
                 />
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResetEmail(loginForm.email);
+                    setActiveTab("forgot-password");
+                  }}
+                  className="text-sm text-blue-600 hover:text-blue-800 underline"
+                >
+                  Forgot Password?
+                </button>
               </div>
               
               <Button type="submit" className="w-full" disabled={isLoading}>
@@ -434,18 +821,71 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                 <Input
                   id="register-password"
                   type="password"
-                  placeholder="Create password (min 6 characters)"
+                  placeholder="Create password"
                   className="pl-10"
                   value={registerForm.password}
                   onChange={(e) => handleFieldChange("password", e.target.value)}
                   onBlur={() => handleBlur("password")}
                   required
                 />
-                {validationErrors.password && (
-                  <p className="text-red-500 text-sm mt-1">
-                    <AlertCircle className="inline-block mr-1 h-4 w-4" />
-                    {validationErrors.password}
-                  </p>
+                
+                {/* Password Strength Indicator */}
+                {registerForm.password && (
+                  <div className="mt-3 p-3 bg-gray-50 border border-gray-200 rounded-lg space-y-2">
+                    <p className="text-xs font-semibold text-gray-700 mb-2">Password must contain:</p>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        {passwordStrength.minLength ? (
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <div className="h-4 w-4 rounded-full border-2 border-gray-300" />
+                        )}
+                        <span className={`text-xs ${passwordStrength.minLength ? 'text-green-700' : 'text-gray-600'}`}>
+                          At least 8 characters
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {passwordStrength.hasUppercase ? (
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <div className="h-4 w-4 rounded-full border-2 border-gray-300" />
+                        )}
+                        <span className={`text-xs ${passwordStrength.hasUppercase ? 'text-green-700' : 'text-gray-600'}`}>
+                          One uppercase letter (A-Z)
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {passwordStrength.hasLowercase ? (
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <div className="h-4 w-4 rounded-full border-2 border-gray-300" />
+                        )}
+                        <span className={`text-xs ${passwordStrength.hasLowercase ? 'text-green-700' : 'text-gray-600'}`}>
+                          One lowercase letter (a-z)
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {passwordStrength.hasNumber ? (
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <div className="h-4 w-4 rounded-full border-2 border-gray-300" />
+                        )}
+                        <span className={`text-xs ${passwordStrength.hasNumber ? 'text-green-700' : 'text-gray-600'}`}>
+                          One number (0-9)
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {passwordStrength.hasSpecialChar ? (
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        ) : (
+                          <div className="h-4 w-4 rounded-full border-2 border-gray-300" />
+                        )}
+                        <span className={`text-xs ${passwordStrength.hasSpecialChar ? 'text-green-700' : 'text-gray-600'}`}>
+                          One special character (!@#$%^&*...)
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                 )}
               </div>
               
@@ -514,6 +954,49 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                 </a>{' '}
                 apply.
               </p>
+            </form>
+          </TabsContent>
+          
+          <TabsContent value="forgot-password" className="space-y-4 mt-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+              <p className="text-sm text-blue-800">
+                💡 Enter your email address and we'll send you a password reset link. You can request a new link as many times as needed.
+              </p>
+            </div>
+            
+            <form onSubmit={handleRequestPasswordReset} className="space-y-4">
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  type="email"
+                  placeholder="Enter your email"
+                  className="pl-10"
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  required
+                />
+              </div>
+              
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  'Send Reset Link'
+                )}
+              </Button>
+              
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("login")}
+                  className="text-sm text-gray-600 hover:text-gray-800"
+                >
+                  Back to login
+                </button>
+              </div>
             </form>
           </TabsContent>
         </Tabs>

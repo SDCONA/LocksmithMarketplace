@@ -27,10 +27,8 @@ interface MyRetailerDealsPageProps {
 export function MyRetailerDealsPage({ user, onBack, onNavigateToProfile }: MyRetailerDealsPageProps) {
   const [profile, setProfile] = useState<any>(null);
   const [deals, setDeals] = useState<any[]>([]);
-  const [dealTypes, setDealTypes] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "paused" | "archived">("all");
   
   // Admin state
   const [isAdmin, setIsAdmin] = useState(false);
@@ -68,7 +66,6 @@ export function MyRetailerDealsPage({ user, onBack, onNavigateToProfile }: MyRet
     price: "",
     original_price: "",
     external_url: "",
-    deal_type_id: "",
     retailer_profile_id: "", // Admin can select retailer
   });
   const [isSaving, setIsSaving] = useState(false);
@@ -95,10 +92,9 @@ export function MyRetailerDealsPage({ user, onBack, onNavigateToProfile }: MyRet
       setIsAdmin(adminStatus);
 
       // OPTIMIZED: Load profile, deals, and deal types in parallel
-      const [profileData, dealsData, typesData] = await Promise.all([
+      const [profileData, dealsData] = await Promise.all([
         DealsService.getMyRetailerProfile(),
         DealsService.getDeals(),
-        DealsService.getDealTypes(),
       ]);
       
       // If not admin and no profile, redirect
@@ -109,7 +105,6 @@ export function MyRetailerDealsPage({ user, onBack, onNavigateToProfile }: MyRet
       }
       
       setProfile(profileData);
-      setDealTypes(typesData);
 
       // Backend already filters deals by user, no need to filter on frontend
       setDeals(dealsData.deals);
@@ -135,7 +130,6 @@ export function MyRetailerDealsPage({ user, onBack, onNavigateToProfile }: MyRet
       price: "",
       original_price: "",
       external_url: "",
-      deal_type_id: "",
       retailer_profile_id: "", // Admin can select retailer
     });
     setDealFormFiles([]);
@@ -151,7 +145,6 @@ export function MyRetailerDealsPage({ user, onBack, onNavigateToProfile }: MyRet
       price: deal.price.toString(),
       original_price: deal.original_price ? deal.original_price.toString() : "",
       external_url: deal.external_url,
-      deal_type_id: deal.deal_type_id || "",
       retailer_profile_id: deal.retailer_profile_id || "", // Admin can select retailer
     });
     setDealFormFiles([]);
@@ -200,7 +193,6 @@ export function MyRetailerDealsPage({ user, onBack, onNavigateToProfile }: MyRet
         price: parseFloat(dealForm.price),
         original_price: dealForm.original_price ? parseFloat(dealForm.original_price) : null,
         external_url: dealForm.external_url,
-        deal_type_id: dealForm.deal_type_id || null,
         retailer_profile_id: isAdmin ? dealForm.retailer_profile_id : profile.id,
         expires_at: expiresAt.toISOString(),
       };
@@ -539,9 +531,8 @@ export function MyRetailerDealsPage({ user, onBack, onNavigateToProfile }: MyRet
 
   const filteredDeals = deals.filter(deal => {
     const matchesSearch = deal.title.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === "all" || deal.status === statusFilter;
     const matchesRetailer = retailerFilter === "all" || deal.retailer_profile_id === retailerFilter;
-    return matchesSearch && matchesStatus && matchesRetailer;
+    return matchesSearch && matchesRetailer;
   });
 
   const formatTimeRemaining = (expiresAt: string) => {
@@ -711,34 +702,6 @@ export function MyRetailerDealsPage({ user, onBack, onNavigateToProfile }: MyRet
                   <span className="text-sm">Select All</span>
                 </div>
               )}
-              <Button
-                variant={statusFilter === "all" ? "default" : "outline"}
-                onClick={() => setStatusFilter("all")}
-                size="sm"
-              >
-                All
-              </Button>
-              <Button
-                variant={statusFilter === "active" ? "default" : "outline"}
-                onClick={() => setStatusFilter("active")}
-                size="sm"
-              >
-                Active
-              </Button>
-              <Button
-                variant={statusFilter === "paused" ? "default" : "outline"}
-                onClick={() => setStatusFilter("paused")}
-                size="sm"
-              >
-                Paused
-              </Button>
-              <Button
-                variant={statusFilter === "archived" ? "default" : "outline"}
-                onClick={() => setStatusFilter("archived")}
-                size="sm"
-              >
-                Archived
-              </Button>
             </div>
           </div>
         </div>
@@ -749,7 +712,6 @@ export function MyRetailerDealsPage({ user, onBack, onNavigateToProfile }: MyRet
         <div className="max-w-6xl mx-auto px-4 py-6">
           <CSVBulkUpload 
             profile={profile}
-            dealTypes={dealTypes}
             onSuccess={loadData}
           />
         </div>
@@ -762,7 +724,7 @@ export function MyRetailerDealsPage({ user, onBack, onNavigateToProfile }: MyRet
             <CardContent>
               <Tag className="h-12 w-12 mx-auto mb-4 text-gray-400" />
               <p className="text-gray-600 mb-4">
-                {searchQuery || statusFilter !== "all" 
+                {searchQuery || retailerFilter !== "all" 
                   ? "No deals match your filters" 
                   : "You haven't created any deals yet"}
               </p>
@@ -1080,29 +1042,6 @@ export function MyRetailerDealsPage({ user, onBack, onNavigateToProfile }: MyRet
                 }}
                 placeholder="https://yourwebsite.com/product"
               />
-            </div>
-
-            <div>
-              <label className="text-sm font-medium mb-1 block">Deal Type</label>
-              <Select
-                value={dealForm.deal_type_id}
-                onValueChange={(value) => setDealForm({ ...dealForm, deal_type_id: value === "none" ? "" : value })}
-                className="w-full"
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="No category">
-                    {dealForm.deal_type_id ? dealTypes.find(type => type.id === dealForm.deal_type_id)?.name : "No category"}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No category</SelectItem>
-                  {dealTypes.map((type) => (
-                    <SelectItem key={type.id} value={type.id}>
-                      {type.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
 
             {/* Image Upload Section */}

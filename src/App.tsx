@@ -26,7 +26,6 @@ import { MessagesPage } from "./components/MessagesPage";
 import { AccountPage } from "./components/AccountPage";
 import { ListingPage } from "./components/ListingPage";
 import { MarketplaceFilters } from "./components/MarketplaceFilters";
-import { MobileNavigation } from "./components/MobileNavigation";
 import { SettingsPage } from "./components/SettingsPage";
 import { UserProfilePage } from "./components/UserProfilePage";
 import { HelpSupportPage } from "./components/HelpSupportPage";
@@ -71,7 +70,10 @@ import {
   Heart,
   ShieldCheck,
   Archive,
-  Info
+  Info,
+  Moon,
+  Sun,
+  Tag
 } from "lucide-react";
 
 // All major retailers promotional banners - memory optimized (KEY4, UHS Hardware, YCKG, KeyDirect, Transponder Island, Car & Truck Remotes, Best Key Supply, Noble Key Supply, Key Innovations, and Locksmith Keyless)
@@ -105,6 +107,22 @@ const mockMarketplaceItems = [];
 const mockSearchResults = [];
 
 export default function App() {
+  // Dark Mode State - Initialize from localStorage
+  const [darkMode, setDarkMode] = useState(() => {
+    const saved = localStorage.getItem('darkMode');
+    return saved ? JSON.parse(saved) : false;
+  });
+
+  // Apply dark mode class to document element
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+    localStorage.setItem('darkMode', JSON.stringify(darkMode));
+  }, [darkMode]);
+
   // Auth & User State
   const [user, setUser] = useState<any>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -438,6 +456,59 @@ export default function App() {
     
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+  
+  // Handle email verification and password reset tokens from URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const verifyToken = urlParams.get('verify_token');
+    const resetToken = urlParams.get('reset_token');
+    
+    const handleTokenVerification = async () => {
+      if (verifyToken) {
+        console.log('[Email Verification] Token found in URL, attempting verification...');
+        try {
+          const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-a7e285ba/verify-email`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${publicAnonKey}`
+            },
+            body: JSON.stringify({ token: verifyToken })
+          });
+
+          const data = await response.json();
+
+          if (data.success && data.user) {
+            toast.success("Email verified successfully!", {
+              description: "Welcome to Locksmith Marketplace!"
+            });
+            setUser(data.user);
+            // Clear token from URL
+            window.history.replaceState({}, '', '/');
+          } else {
+            toast.error("Verification failed", {
+              description: data.error || "Invalid or expired token. Please request a new verification email."
+            });
+          }
+        } catch (error) {
+          console.error('[Email Verification] Error:', error);
+          toast.error("Verification failed", {
+            description: "An error occurred. Please try again."
+          });
+        }
+      } else if (resetToken) {
+        console.log('[Password Reset] Token found in URL');
+        // For reset token, we'll show the reset form in AuthModal
+        // Store token temporarily and show auth modal
+        sessionStorage.setItem('resetToken', resetToken);
+        setShowAuthModal(true);
+        // Clear token from URL
+        window.history.replaceState({}, '', '/');
+      }
+    };
+    
+    handleTokenVerification();
   }, []);
   
   // Check admin access when navigating to admin section
@@ -1565,7 +1636,7 @@ export default function App() {
   });
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col pb-16">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col pb-16">
       {/* Deal Modal for database products */}
       {selectedDealForModal && (
         <DealModal
@@ -1580,71 +1651,93 @@ export default function App() {
       )}
 
       {/* Header */}
-      <header className="sticky top-0 z-50 bg-gradient-to-r from-blue-600/90 via-blue-500/85 to-indigo-600/90 backdrop-blur-xl text-white shadow-[0_8px_32px_rgba(0,0,0,0.12)] border-b border-white/20">
-        <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent pointer-events-none"></div>
+      <header className="sticky top-0 z-50 bg-gradient-to-r from-blue-600/90 via-blue-500/85 to-indigo-600/90 dark:from-gray-800 dark:via-gray-900 dark:to-black backdrop-blur-xl text-white shadow-[0_8px_32px_rgba(0,0,0,0.12)] border-b border-white/20 dark:border-gray-700">
+        <div className="absolute inset-0 bg-gradient-to-b from-white/10 to-transparent dark:from-white/5 pointer-events-none"></div>
         <div className="container mx-auto px-4 py-4 relative">
           {/* Mobile Header */}
           <div className="md:hidden">
             <div className="flex items-center justify-between gap-3">
               {/* Logo */}
               <div 
-                className="text-white font-semibold text-sm leading-tight flex-shrink-0"
+                className="text-blue-400 font-bold text-2xl leading-tight flex-shrink-0"
               >
-                <div>Locksmith</div>
-                <div>Marketplace</div>
+                LM
               </div>
               
-              {/* Mobile Search Bar */}
-              <div className="relative flex-1 min-w-0">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder={currentSection === 'marketplace' ? "Search marketplace..." : "Search keys..."}
-                  value={currentSection === 'marketplace' ? marketplaceSearch : searchQuery}
-                  onChange={(e) => {
-                    if (currentSection === 'marketplace') {
-                      setMarketplaceSearch(e.target.value);
-                    } else {
-                      setSearchQuery(e.target.value);
-                    }
-                  }}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                  className="pl-8 pr-10 py-2 w-full rounded-xl bg-white/95 backdrop-blur-md text-gray-900 border border-white/30 text-sm sm:text-base font-bold text-left shadow-[0_4px_16px_rgba(0,0,0,0.15)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.2)] transition-all duration-300"
-                />
-                <Button 
-                  onClick={() => {
-                    console.log('Search Console - Mobile Search Triggered:', {
-                      query: currentSection === 'marketplace' ? marketplaceSearch : searchQuery,
-                      section: currentSection,
-                      selectedVehicle: selectedVehicle,
-                      timestamp: new Date().toISOString()
-                    });
-                    handleSearch();
-                  }}
-                  disabled={isSearching}
-                  className="absolute right-1 top-1/2 transform -translate-y-1/2 bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 h-6 px-1.5 rounded-lg shadow-[0_2px_8px_rgba(0,0,0,0.2)] hover:shadow-[0_4px_12px_rgba(0,0,0,0.3)] transition-all duration-300"
+              {/* Mobile Navigation Buttons */}
+              <div className="flex items-center gap-2 justify-center">
+                {/* Marketplace */}
+                <Button
+                  variant="ghost"
                   size="sm"
+                  onClick={() => {
+                    console.log('Mobile Navigation - Marketplace clicked');
+                    setCurrentSection('marketplace');
+                  }}
+                  className={`flex flex-col items-center justify-center h-12 w-16 rounded-lg transition-all duration-300 ${
+                    currentSection === 'marketplace' ? 'text-white bg-white/25 shadow-md border border-white/40' : 'text-white/90 hover:bg-white/15 hover:text-white'
+                  }`}
                 >
-                  {isSearching ? (
-                    <RefreshCw className="h-3 w-3 animate-spin" />
-                  ) : (
-                    <Search className="h-3 w-3" />
+                  <Store className="h-5 w-5 mb-1" />
+                  <span className="text-xs font-bold leading-tight">Market</span>
+                </Button>
+
+                {/* Messages */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    console.log('Mobile Navigation - Messages clicked');
+                    if (!user) {
+                      console.log('User not authenticated, showing auth modal');
+                      handleAuthRequired();
+                      return;
+                    }
+                    setCurrentSection('messages');
+                  }}
+                  className={`flex flex-col items-center justify-center h-12 w-16 rounded-lg relative transition-all duration-300 ${
+                    currentSection === 'messages' ? 'text-white bg-white/25 shadow-md border border-white/40' : 'text-white/90 hover:bg-white/15 hover:text-white'
+                  }`}
+                >
+                  <MessageCircle className="h-5 w-5 mb-1" />
+                  <span className="text-xs font-bold leading-tight">Messages</span>
+                  {unreadMessagesCount > 0 && (
+                    <Badge className="absolute -top-1 -right-1 h-4 w-4 p-0 text-[10px] bg-red-500 text-white shadow-lg ring-2 ring-white/30 flex items-center justify-center">
+                      {unreadMessagesCount > 9 ? '9+' : unreadMessagesCount}
+                    </Badge>
                   )}
                 </Button>
+
+                {/* Deals */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    console.log('Mobile Navigation - Deals clicked');
+                    setCurrentSection('deals');
+                  }}
+                  className={`flex flex-col items-center justify-center h-12 w-16 rounded-lg transition-all duration-300 ${
+                    currentSection === 'deals' ? 'text-white bg-white/25 shadow-md border border-white/40' : 'text-white/90 hover:bg-white/15 hover:text-white'
+                  }`}
+                >
+                  <Tag className="h-5 w-5 mb-1" />
+                  <span className="text-xs font-bold leading-tight">Deals</span>
+                </Button>
               </div>
-              
+
               {/* Mobile User Menu */}
               {user ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button 
                       variant="ghost" 
-                      className={`text-white hover:bg-white/20 hover:shadow-lg p-2 rounded-xl flex-shrink-0 backdrop-blur-sm border transition-all duration-300 ${
+                      className={`text-white hover:bg-white/20 hover:shadow-lg p-3 rounded-xl flex-shrink-0 backdrop-blur-sm border transition-all duration-300 ${
                         unreadNotificationsCount > 0 
                           ? 'border-red-500 ring-2 ring-red-500/50 hover:border-red-400' 
                           : 'border-white/10 hover:border-white/30'
                       }`}
                     >
-                      <Avatar className="h-6 w-6 ring-2 ring-white/40 shadow-md">
+                      <Avatar className="h-8 w-8 ring-2 ring-white/40 shadow-md">
                         <AvatarImage src={user.avatar} />
                         <AvatarFallback className="bg-gradient-to-br from-blue-500 to-indigo-600 text-white font-medium text-xs">
                           {user.firstName?.[0]}{user.lastName?.[0]}
@@ -1708,9 +1801,10 @@ export default function App() {
                   variant="outline"
                   size="sm"
                   onClick={() => setShowAuthModal(true)}
-                  className="bg-white/95 text-gray-700 border-white/40 hover:bg-white hover:shadow-lg text-xs px-3 py-1.5 rounded-lg font-medium transition-all duration-300"
+                  className="bg-white/95 text-gray-700 border-white/40 hover:bg-white hover:shadow-lg text-xs px-3 py-1.5 rounded-lg font-medium transition-all duration-300 flex flex-col leading-none h-auto"
                 >
-                  Sign In
+                  <span>Sign</span>
+                  <span>In</span>
                 </Button>
               )}
             </div>
@@ -1808,54 +1902,55 @@ export default function App() {
                 </div>
                 
                 {/* Search Bar - Tablet: smaller, Desktop: full size */}
-                <div className="flex-1 ml-6 lg:ml-6 md:ml-4">
-                  <div className="flex items-center lg:space-x-3 md:flex-col lg:flex-row md:space-y-2 lg:space-y-0">
-                    {/* Search Bar */}
-                    <div className="flex-1 relative w-full">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                      <Input
-                        placeholder={currentSection === 'marketplace' ? "Search marketplace..." : "Search automotive keys (includes eBay)..."}
-                        value={currentSection === 'marketplace' ? marketplaceSearch : searchQuery}
-                        onChange={(e) => {
-                          if (currentSection === 'marketplace') {
-                            setMarketplaceSearch(e.target.value);
-                          } else {
-                            setSearchQuery(e.target.value);
-                          }
-                        }}
-                        onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                        className="pl-10 pr-16 py-2.5 w-full rounded-2xl bg-white/95 backdrop-blur-md text-gray-900 border border-white/30 text-sm sm:text-base font-bold shadow-[0_4px_20px_rgba(0,0,0,0.15)] hover:shadow-[0_6px_24px_rgba(0,0,0,0.2)] transition-all duration-300"
-                      />
-                      <Button 
-                        onClick={() => {
-                          console.log('Search Console - Desktop Search Triggered:', {
-                            query: currentSection === 'marketplace' ? marketplaceSearch : searchQuery,
-                            section: currentSection,
-                            selectedVehicle: selectedVehicle,
-                            timestamp: new Date().toISOString(),
-                            filters: {
-                              retailers: selectedRetailers,
-                              sortBy: sortBy,
-                              inStockOnly: inStockOnly,
-                              selectedCategory: selectedCategory,
-                              selectedCondition: selectedCondition
+                {currentSection !== 'deals' && (
+                  <div className="flex-1 ml-6 lg:ml-6 md:ml-4">
+                    <div className="flex items-center lg:space-x-3 md:flex-col lg:flex-row md:space-y-2 lg:space-y-0">
+                      {/* Search Bar */}
+                      <div className="flex-1 relative w-full">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <Input
+                          placeholder={currentSection === 'marketplace' ? "Search marketplace..." : "Search automotive keys (includes eBay)..."}
+                          value={currentSection === 'marketplace' ? marketplaceSearch : searchQuery}
+                          onChange={(e) => {
+                            if (currentSection === 'marketplace') {
+                              setMarketplaceSearch(e.target.value);
+                            } else {
+                              setSearchQuery(e.target.value);
                             }
-                          });
-                          handleSearch();
-                        }}
-                        disabled={isSearching}
-                        className="absolute right-1.5 top-1/2 transform -translate-y-1/2 bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 h-8 px-4 rounded-xl shadow-[0_2px_12px_rgba(0,0,0,0.2)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.3)] transition-all duration-300"
-                        size="sm"
-                      >
-                        {isSearching ? (
-                          <RefreshCw className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <Search className="h-3 w-3" />
-                        )}
-                      </Button>
-                    </div>
-                    
-                    {/* Vehicle Selector Section - Shows inline on desktop, separate row on tablet */}
+                          }}
+                          onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
+                          className="pl-10 pr-16 py-2.5 w-full rounded-2xl bg-white/95 dark:bg-gray-800 backdrop-blur-md text-gray-900 dark:text-white border border-white/30 dark:border-gray-600 text-sm sm:text-base font-bold shadow-[0_4px_20px_rgba(0,0,0,0.15)] hover:shadow-[0_6px_24px_rgba(0,0,0,0.2)] transition-all duration-300"
+                        />
+                        <Button 
+                          onClick={() => {
+                            console.log('Search Console - Desktop Search Triggered:', {
+                              query: currentSection === 'marketplace' ? marketplaceSearch : searchQuery,
+                              section: currentSection,
+                              selectedVehicle: selectedVehicle,
+                              timestamp: new Date().toISOString(),
+                              filters: {
+                                retailers: selectedRetailers,
+                                sortBy: sortBy,
+                                inStockOnly: inStockOnly,
+                                selectedCategory: selectedCategory,
+                                selectedCondition: selectedCondition
+                              }
+                            });
+                            handleSearch();
+                          }}
+                          disabled={isSearching}
+                          className="absolute right-1.5 top-1/2 transform -translate-y-1/2 bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 h-8 px-4 rounded-xl shadow-[0_2px_12px_rgba(0,0,0,0.2)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.3)] transition-all duration-300"
+                          size="sm"
+                        >
+                          {isSearching ? (
+                            <RefreshCw className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Search className="h-3 w-3" />
+                          )}
+                        </Button>
+                      </div>
+                      
+                      {/* Vehicle Selector Section - Shows inline on desktop, separate row on tablet */}
                     {(currentSection === 'retailers' || currentSection === 'search' || showSearchResults) && !['messages', 'account', 'listing', 'settings', 'profile', 'help', 'seller-listings', 'promote', 'contact', 'privacy', 'terms', 'saved-items', 'saved-marketplace-listings', 'saved-deals', 'archived-listings', 'admin', 'retailer-dashboard', 'my-retailer-deals'].includes(currentSection) && (
                       <div className="lg:flex lg:items-center lg:space-x-3 lg:flex-shrink-0 md:flex md:items-center md:justify-center md:w-full lg:w-auto">
                         {/* "or" text - Desktop only */}
@@ -1867,8 +1962,9 @@ export default function App() {
                         </div>
                       </div>
                     )}
+                    </div>
                   </div>
-                </div>
+                )}
               </div>
               
               {/* User Menu - positioned at the end */}
@@ -1953,6 +2049,14 @@ export default function App() {
                 </DropdownMenu>
               ) : (
                 <div className="flex items-center space-x-2 ml-4 flex-shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setDarkMode(!darkMode)}
+                    className="text-white hover:bg-white/20 hover:shadow-lg p-2 rounded-xl backdrop-blur-sm border border-white/10 hover:border-white/30 transition-all duration-300"
+                  >
+                    {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
@@ -2295,23 +2399,7 @@ export default function App() {
                 {/* Marketplace Header */}
                 <div className="container mx-auto px-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4 mt-6">
                   <div className="flex items-center space-x-3">
-                    <h1 className="hidden md:block text-2xl font-semibold text-gray-900">Marketplace</h1>
-                    {/* Floating Create Listing Button */}
-                    <Button
-                      onClick={() => {
-                        console.log('Create Listing button clicked');
-                        if (!user) {
-                          console.log('User not authenticated, showing auth modal');
-                          handleAuthRequired();
-                          return;
-                        }
-                        setShowCreateListing(true);
-                      }}
-                      className="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-50 h-14 w-14 rounded-full bg-blue-600 hover:bg-blue-700 shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
-                      size="sm"
-                    >
-                      <Plus className="h-6 w-6 text-white" />
-                    </Button>
+                    <h1 className="hidden md:block text-2xl font-semibold text-gray-900 dark:text-white">Marketplace</h1>
                   </div>
                 </div>
 
@@ -2328,6 +2416,18 @@ export default function App() {
                     setZipCode={setZipCode}
                     radius={radius}
                     setRadius={setRadius}
+                    searchQuery={marketplaceSearch}
+                    setSearchQuery={setMarketplaceSearch}
+                    handleSearch={handleSearch}
+                    isSearching={isSearching}
+                    currentSection={currentSection}
+                    onAddListing={() => {
+                      if (!user) {
+                        handleAuthRequired();
+                        return;
+                      }
+                      setShowCreateListing(true);
+                    }}
                   />
                 </div>
 
@@ -2414,8 +2514,8 @@ export default function App() {
                   {!isLoadingListings && sortedMarketplaceItems.length === 0 && (
                     <div className="text-center py-12">
                       <Store className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-gray-900 mb-2">No items found</h3>
-                      <p className="text-gray-600 mb-4">
+                      <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No items found</h3>
+                      <p className="text-gray-600 dark:text-gray-400 mb-4">
                         Try adjusting your search criteria or filters
                       </p>
                       <Button 
@@ -2443,7 +2543,7 @@ export default function App() {
                 {/* Search Info */}
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   <div>
-                    <h2 className="text-xl font-semibold text-gray-900">
+                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
                       {selectedVehicle 
                         ? `Keys for ${selectedVehicle.year} ${selectedVehicle.make} ${selectedVehicle.model}`
                         : searchQuery 
@@ -2523,8 +2623,8 @@ export default function App() {
                 ) : (
                   <div className="text-center py-12">
                     <Search className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No results found</h3>
-                    <p className="text-gray-600 mb-4">
+                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No results found</h3>
+                    <p className="text-gray-600 dark:text-gray-400 mb-4">
                       Try adjusting your search criteria or filters
                     </p>
                     <Button onClick={() => {
@@ -2863,15 +2963,6 @@ export default function App() {
         onSubmitReport={handleSubmitReport}
         listingId={reportingListing?.id || ""}
         listingTitle={reportingListing?.title || ""}
-      />
-
-      {/* Mobile Navigation */}
-      <MobileNavigation
-        currentSection={currentSection}
-        setCurrentSection={setCurrentSection}
-        user={user}
-        onAuthRequired={handleAuthRequired}
-        unreadMessages={unreadMessagesCount}
       />
       
       {/* Toast Notifications */}

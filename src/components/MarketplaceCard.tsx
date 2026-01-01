@@ -125,7 +125,7 @@ export function MarketplaceCard({
   const daysRemaining = getDaysRemaining();
 
   return (
-    <div className={`bg-white rounded-lg shadow-sm border hover:shadow-md transition-shadow duration-200 overflow-hidden cursor-pointer relative ${isSelected ? 'ring-2 ring-blue-500' : ''}`}>
+    <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 hover:shadow-md transition-shadow duration-200 overflow-hidden cursor-pointer relative ${isSelected ? 'ring-2 ring-blue-500' : ''}`}>
       {/* Selection Checkbox */}
       {onSelectListing && (
         <div className="absolute top-1 sm:top-2 left-1 sm:left-2 z-50">
@@ -267,7 +267,7 @@ export function MarketplaceCard({
       {/* Content */}
       <div className="p-2 sm:p-3 md:p-4 space-y-2 sm:space-y-3" onClick={() => onViewListing(item)}>
         {/* Title */}
-        <h3 className="font-medium text-gray-900 line-clamp-1 leading-tight text-sm sm:text-base">
+        <h3 className="font-medium text-gray-900 dark:text-white line-clamp-1 leading-tight text-sm sm:text-base">
           {item.title}
         </h3>
 

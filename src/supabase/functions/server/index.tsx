@@ -6,6 +6,8 @@ import dealsApp from "./deals-routes.tsx";
 import cronApp from "./cron-routes.tsx";
 import { sendAdminWarning } from "./admin-warning-helper.tsx";
 import { verifyRecaptcha } from "./recaptcha-verify.tsx";
+import { sendEmail, emailVerificationTemplate, passwordResetTemplate } from "./resend-mailer.tsx";
+import * as kv from "./kv_store.tsx";
 
 const app = new Hono();
 
@@ -219,11 +221,11 @@ app.post("/make-server-a7e285ba/auth/signup", async (c) => {
 
     const supabaseAdmin = getSupabaseAdmin();
 
-    // Create user in auth.users
+    // Create user in auth.users (email NOT confirmed yet)
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      email_confirm: true, // Auto-confirm since we don't have email server configured
+      email_confirm: false, // Require email verification
       user_metadata: {
         first_name: firstName || '',
         last_name: lastName || '',
@@ -266,56 +268,50 @@ app.post("/make-server-a7e285ba/auth/signup", async (c) => {
       console.log(`Profile created successfully for user ${authData.user.id}`);
     }
 
-    // Wait longer for the user to be fully created in the database
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // Generate verification token and code
+    const verifyToken = generateToken();
+    const verifyCode = generateVerificationCode();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
-    // Sign in the user to get session
-    const supabaseClient = getSupabaseClient();
-    const { data: sessionData, error: signInError } = await supabaseClient.auth.signInWithPassword({
-      email,
-      password,
+    // Store token in KV store
+    const tokenData = {
+      userId: authData.user.id,
+      email: email,
+      code: verifyCode,
+      type: 'email_verification',
+      expires: expiresAt.toISOString(),
+      createdAt: new Date().toISOString()
+    };
+
+    await kv.set(`verify_token:${verifyToken}`, JSON.stringify(tokenData));
+    console.log(`[Signup] Verification token stored for user ${authData.user.id}`);
+
+    // Send verification email
+    const appUrl = c.req.header('origin') || 'https://your-app-url.com';
+    const verificationUrl = `${appUrl}?verify_token=${verifyToken}`;
+    
+    const emailResult = await sendEmail({
+      to: email,
+      subject: 'Verify Your Email - Locksmith Marketplace',
+      html: emailVerificationTemplate({
+        userName: firstName || 'there',
+        verificationUrl,
+        verificationCode: verifyCode
+      })
     });
 
-    if (signInError) {
-      console.error(`Auto sign-in error after signup for ${email}: ${signInError.message}`, signInError);
-      console.log(`User was created successfully with ID ${authData.user.id}, but auto-signin failed. User will need to sign in manually.`);
-      
-      // Fetch user profile even if auto-signin failed
-      const { data: profile } = await supabaseAdmin
-        .from('user_profiles')
-        .select('*')
-        .eq('id', authData.user.id)
-        .maybeSingle();
-
-      return c.json({ 
-        success: true, 
-        message: "Account created successfully! Please sign in with your credentials.",
-        requiresManualSignIn: true,
-        user: {
-          id: authData.user.id,
-          email: authData.user.email,
-          firstName: firstName || '',
-          lastName: lastName || '',
-          phone: profile?.phone || phone || '',
-          location: profile?.location || location || '',
-          avatar: profile?.avatar_url || '',
-          address: profile?.address || { city: city || '', state: '', zipCode: '' }
-        }
-      });
+    if (!emailResult.success) {
+      console.error(`[Signup] Failed to send verification email: ${emailResult.error}`);
+      // Don't fail signup, user can request a new verification email
+    } else {
+      console.log(`[Signup] Verification email sent to ${email}`);
     }
 
-    console.log(`User signed in successfully: ${authData.user.id}`);
-
-    // Fetch user profile to get complete data
-    const { data: profile } = await supabaseAdmin
-      .from('user_profiles')
-      .select('*')
-      .eq('id', authData.user.id)
-      .maybeSingle();
-
+    // Return success with message to check email
     return c.json({
       success: true,
-      message: "Account created successfully",
+      requiresEmailVerification: true,
+      message: "Account created successfully! Please check your email to verify your account.",
       user: {
         id: authData.user.id,
         email: authData.user.email,
@@ -4679,6 +4675,218 @@ app.get('/make-server-a7e285ba/promotional-banners', async (c) => {
 });
 
 // ============================================
+// DEALS BANNER ROUTES
+// ============================================
+
+// Get all deals banners (admin only)
+app.get('/make-server-a7e285ba/admin/deals-banners', async (c) => {
+  try {
+    const { user, error } = await verifyAdmin(c.req.header('Authorization'));
+    if (error || !user) {
+      return c.json({ error: error || 'Unauthorized - Admin access required' }, 401);
+    }
+
+    const supabaseAdmin = getSupabaseAdmin();
+    const { data: banners, error: fetchError } = await supabaseAdmin
+      .from('deals_banners_a7e285ba')
+      .select('*')
+      .order('display_order', { ascending: true });
+
+    if (fetchError) {
+      console.error('Error fetching deals banners:', fetchError);
+      // If table doesn't exist, return empty array instead of error
+      if (fetchError.code === '42P01') {
+        console.log('deals_banners_a7e285ba table does not exist yet.');
+        return c.json({
+          success: true,
+          banners: [],
+          warning: 'Table not initialized. Creating table...'
+        });
+      }
+      return c.json({ error: 'Failed to fetch deals banners', details: fetchError.message }, 500);
+    }
+
+    return c.json({
+      success: true,
+      banners: banners || []
+    });
+  } catch (error) {
+    console.error('Error in get deals-banners:', error);
+    return c.json({ error: 'Failed to fetch deals banners', details: error instanceof Error ? error.message : 'Unknown error' }, 500);
+  }
+});
+
+// Create deals banner (admin only)
+app.post('/make-server-a7e285ba/admin/deals-banners', async (c) => {
+  try {
+    const { user, error } = await verifyAdmin(c.req.header('Authorization'));
+    if (error || !user) {
+      return c.json({ error: error || 'Unauthorized - Admin access required' }, 401);
+    }
+
+    const body = await c.req.json();
+    const { name, link, pc_image_url, mobile_image_url, is_active } = body;
+
+    if (!name) {
+      return c.json({ error: 'Banner name is required' }, 400);
+    }
+
+    if (!pc_image_url && !mobile_image_url) {
+      return c.json({ error: 'At least one image (PC or mobile) is required' }, 400);
+    }
+
+    const supabaseAdmin = getSupabaseAdmin();
+
+    // Get the highest display_order
+    const { data: maxOrderBanner } = await supabaseAdmin
+      .from('deals_banners_a7e285ba')
+      .select('display_order')
+      .order('display_order', { ascending: false })
+      .limit(1)
+      .single();
+
+    const nextOrder = (maxOrderBanner?.display_order || 0) + 1;
+
+    const { data, error: insertError } = await supabaseAdmin
+      .from('deals_banners_a7e285ba')
+      .insert({
+        name,
+        link: link || '',
+        pc_image_url,
+        mobile_image_url,
+        display_order: nextOrder,
+        is_active: is_active !== undefined ? is_active : true,
+        updated_by: user.id
+      })
+      .select()
+      .single();
+
+    if (insertError) {
+      console.error('Error creating deals banner:', insertError);
+      return c.json({ error: 'Failed to create deals banner' }, 500);
+    }
+
+    console.log(`Deals banner created by admin ${user.email}:`, data.id);
+
+    return c.json({
+      success: true,
+      banner: data
+    });
+  } catch (error) {
+    console.error('Error in create deals-banner:', error);
+    return c.json({ error: 'Failed to create deals banner' }, 500);
+  }
+});
+
+// Update deals banner (admin only)
+app.put('/make-server-a7e285ba/admin/deals-banners/:id', async (c) => {
+  try {
+    const { user, error } = await verifyAdmin(c.req.header('Authorization'));
+    if (error || !user) {
+      return c.json({ error: error || 'Unauthorized - Admin access required' }, 401);
+    }
+
+    const id = c.req.param('id');
+    const body = await c.req.json();
+    const updates: any = { updated_by: user.id };
+
+    // Only update fields that are provided
+    if (body.name !== undefined) updates.name = body.name;
+    if (body.link !== undefined) updates.link = body.link;
+    if (body.pc_image_url !== undefined) updates.pc_image_url = body.pc_image_url;
+    if (body.mobile_image_url !== undefined) updates.mobile_image_url = body.mobile_image_url;
+    if (body.display_order !== undefined) updates.display_order = body.display_order;
+    if (body.is_active !== undefined) updates.is_active = body.is_active;
+
+    const supabaseAdmin = getSupabaseAdmin();
+    const { data, error: updateError } = await supabaseAdmin
+      .from('deals_banners_a7e285ba')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('Error updating deals banner:', updateError);
+      return c.json({ error: 'Failed to update deals banner' }, 500);
+    }
+
+    console.log(`Deals banner updated by admin ${user.email}:`, id);
+
+    return c.json({
+      success: true,
+      banner: data
+    });
+  } catch (error) {
+    console.error('Error in update deals-banner:', error);
+    return c.json({ error: 'Failed to update deals banner' }, 500);
+  }
+});
+
+// Delete deals banner (admin only)
+app.delete('/make-server-a7e285ba/admin/deals-banners/:id', async (c) => {
+  try {
+    const { user, error } = await verifyAdmin(c.req.header('Authorization'));
+    if (error || !user) {
+      return c.json({ error: error || 'Unauthorized - Admin access required' }, 401);
+    }
+
+    const id = c.req.param('id');
+    const supabaseAdmin = getSupabaseAdmin();
+
+    const { error: deleteError } = await supabaseAdmin
+      .from('deals_banners_a7e285ba')
+      .delete()
+      .eq('id', id);
+
+    if (deleteError) {
+      console.error('Error deleting deals banner:', deleteError);
+      return c.json({ error: 'Failed to delete deals banner' }, 500);
+    }
+
+    console.log(`Deals banner deleted by admin ${user.email}:`, id);
+
+    return c.json({ success: true });
+  } catch (error) {
+    console.error('Error in delete deals-banner:', error);
+    return c.json({ error: 'Failed to delete deals banner' }, 500);
+  }
+});
+
+// Get active deals banners for public deals page
+app.get('/make-server-a7e285ba/deals-banners', async (c) => {
+  try {
+    const supabaseAdmin = getSupabaseAdmin();
+    
+    const { data: banners, error: fetchError } = await supabaseAdmin
+      .from('deals_banners_a7e285ba')
+      .select('*')
+      .eq('is_active', true)
+      .order('display_order', { ascending: true });
+
+    if (fetchError) {
+      console.error('Error fetching active deals banners:', fetchError);
+      // If table doesn't exist, return empty array instead of error
+      if (fetchError.code === '42P01') {
+        return c.json({
+          success: true,
+          banners: []
+        });
+      }
+      return c.json({ error: 'Failed to fetch deals banners', details: fetchError.message }, 500);
+    }
+
+    return c.json({
+      success: true,
+      banners: banners || []
+    });
+  } catch (error) {
+    console.error('Error in get active deals-banners:', error);
+    return c.json({ error: 'Failed to fetch deals banners', details: error instanceof Error ? error.message : 'Unknown error' }, 500);
+  }
+});
+
+// ============================================
 // VEHICLE DATABASE ROUTES
 // ============================================
 
@@ -5819,6 +6027,502 @@ app.post('/make-server-a7e285ba/test-admin-warning', async (c) => {
   } catch (error) {
     console.error('Test error:', error);
     return c.json({ success: false, error: String(error) }, 500);
+  }
+});
+
+// ============================================
+// EMAIL VERIFICATION & PASSWORD RESET ROUTES
+// ============================================
+
+// Helper function to generate random 6-digit code
+function generateVerificationCode(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+// Helper function to generate secure token
+function generateToken(): string {
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
+// POST /make-server-a7e285ba/request-password-reset
+app.post('/make-server-a7e285ba/request-password-reset', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { email } = body;
+
+    if (!email) {
+      return c.json({ error: 'Email is required' }, 400);
+    }
+
+    console.log(`[Password Reset] Request received for email: ${email}`);
+
+    const supabaseAdmin = getSupabaseAdmin();
+
+    // Check if user exists
+    const { data: profile } = await supabaseAdmin
+      .from('user_profiles')
+      .select('id, first_name, last_name, email')
+      .eq('email', email)
+      .maybeSingle();
+
+    if (!profile) {
+      // Don't reveal if email exists or not for security
+      console.log(`[Password Reset] Email not found: ${email}`);
+      return c.json({ 
+        success: true, 
+        message: 'If an account with that email exists, you will receive a password reset link shortly.' 
+      });
+    }
+
+    // Delete old reset tokens for this user before creating a new one
+    console.log(`[Password Reset] Deleting old reset tokens for user ${profile.id}...`);
+    const oldTokens = await kv.getByPrefix('reset_token:');
+    let deletedCount = 0;
+    for (const item of oldTokens) {
+      try {
+        const data = JSON.parse(item.value);
+        if (data.userId === profile.id && data.type === 'password_reset') {
+          await kv.del(item.key);
+          deletedCount++;
+        }
+      } catch (error) {
+        console.error(`[Password Reset] Error parsing token data:`, error);
+      }
+    }
+    if (deletedCount > 0) {
+      console.log(`[Password Reset] Deleted ${deletedCount} old reset token(s) for user ${profile.id}`);
+    }
+
+    // Generate reset token and code
+    const resetToken = generateToken();
+    const resetCode = generateVerificationCode();
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    // Store token in KV store
+    const tokenData = {
+      userId: profile.id,
+      email: profile.email,
+      code: resetCode,
+      type: 'password_reset',
+      expires: expiresAt.toISOString(),
+      createdAt: new Date().toISOString()
+    };
+
+    await kv.set(`reset_token:${resetToken}`, JSON.stringify(tokenData));
+    console.log(`[Password Reset] New token stored for user ${profile.id}`);
+
+    // Send password reset email
+    const appUrl = c.req.header('origin') || 'https://your-app-url.com';
+    const resetUrl = `${appUrl}?reset_token=${resetToken}`;
+    
+    const emailResult = await sendEmail({
+      to: email,
+      subject: 'Reset Your Password - Locksmith Marketplace',
+      html: passwordResetTemplate({
+        userName: profile.first_name || 'there',
+        resetUrl,
+        resetCode
+      })
+    });
+
+    if (!emailResult.success) {
+      console.error(`[Password Reset] Failed to send email: ${emailResult.error}`);
+      return c.json({ error: 'Failed to send reset email' }, 500);
+    }
+
+    console.log(`[Password Reset] Email sent successfully to ${email}`);
+    return c.json({ 
+      success: true, 
+      message: 'If an account with that email exists, you will receive a password reset link shortly.' 
+    });
+
+  } catch (error) {
+    console.error('[Password Reset] Error:', error);
+    return c.json({ error: 'Failed to process password reset request' }, 500);
+  }
+});
+
+// POST /make-server-a7e285ba/reset-password
+app.post('/make-server-a7e285ba/reset-password', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { token, code, newPassword } = body;
+
+    if ((!token && !code) || !newPassword) {
+      return c.json({ error: 'Token or code and new password are required' }, 400);
+    }
+
+    console.log(`[Password Reset] Verification attempt with ${token ? 'token' : 'code'}`);
+
+    const supabaseAdmin = getSupabaseAdmin();
+    let tokenData: any = null;
+    let tokenKey = '';
+
+    // Try to find token by token string or by code
+    if (token) {
+      tokenKey = `reset_token:${token}`;
+      const storedData = await kv.get(tokenKey);
+      if (storedData) {
+        tokenData = JSON.parse(storedData);
+      }
+    } else if (code) {
+      // Search for token by code (this is slower but necessary)
+      const allTokens = await kv.getByPrefix('reset_token:');
+      for (const item of allTokens) {
+        const data = JSON.parse(item.value);
+        if (data.code === code && data.type === 'password_reset') {
+          tokenData = data;
+          tokenKey = item.key;
+          break;
+        }
+      }
+    }
+
+    if (!tokenData) {
+      return c.json({ error: 'Invalid or expired reset token' }, 400);
+    }
+
+    // Check if token is expired
+    const expiresAt = new Date(tokenData.expires);
+    if (expiresAt < new Date()) {
+      await kv.del(tokenKey);
+      return c.json({ error: 'Reset token has expired' }, 400);
+    }
+
+    // Update password
+    const { error: updateError } = await supabaseAdmin.auth.admin.updateUserById(
+      tokenData.userId,
+      { password: newPassword }
+    );
+
+    if (updateError) {
+      console.error(`[Password Reset] Failed to update password: ${updateError.message}`);
+      return c.json({ error: 'Failed to update password' }, 500);
+    }
+
+    // Delete used token
+    await kv.del(tokenKey);
+
+    console.log(`[Password Reset] Password successfully updated for user ${tokenData.userId}`);
+    return c.json({ 
+      success: true, 
+      message: 'Password reset successful. You can now sign in with your new password.' 
+    });
+
+  } catch (error) {
+    console.error('[Password Reset] Error:', error);
+    return c.json({ error: 'Failed to reset password' }, 500);
+  }
+});
+
+// POST /make-server-a7e285ba/verify-email
+app.post('/make-server-a7e285ba/verify-email', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { token, code } = body;
+
+    if (!token && !code) {
+      return c.json({ error: 'Token or code is required' }, 400);
+    }
+
+    console.log(`[Email Verification] Verification attempt with ${token ? 'token' : 'code'}`);
+
+    const supabaseAdmin = getSupabaseAdmin();
+    let tokenData: any = null;
+    let tokenKey = '';
+
+    // Try to find token by token string or by code
+    if (token) {
+      tokenKey = `verify_token:${token}`;
+      const storedData = await kv.get(tokenKey);
+      if (storedData) {
+        tokenData = JSON.parse(storedData);
+      }
+    } else if (code) {
+      // Search for token by code
+      const allTokens = await kv.getByPrefix('verify_token:');
+      for (const item of allTokens) {
+        const data = JSON.parse(item.value);
+        if (data.code === code && data.type === 'email_verification') {
+          tokenData = data;
+          tokenKey = item.key;
+          break;
+        }
+      }
+    }
+
+    if (!tokenData) {
+      return c.json({ error: 'Invalid or expired verification token' }, 400);
+    }
+
+    // Check if token is expired (24 hours)
+    const expiresAt = new Date(tokenData.expires);
+    if (expiresAt < new Date()) {
+      await kv.del(tokenKey);
+      return c.json({ error: 'Verification token has expired' }, 400);
+    }
+
+    // Verify the email
+    const { error: verifyError } = await supabaseAdmin.auth.admin.updateUserById(
+      tokenData.userId,
+      { email_confirm: true }
+    );
+
+    if (verifyError) {
+      console.error(`[Email Verification] Failed to verify email: ${verifyError.message}`);
+      return c.json({ error: 'Failed to verify email' }, 500);
+    }
+
+    // Delete used token
+    await kv.del(tokenKey);
+
+    // Sign in the user automatically
+    const { data: { user } } = await supabaseAdmin.auth.admin.getUserById(tokenData.userId);
+    
+    if (!user) {
+      return c.json({ error: 'User not found' }, 404);
+    }
+
+    // Get user profile
+    const { data: profile } = await supabaseAdmin
+      .from('user_profiles')
+      .select('*')
+      .eq('id', tokenData.userId)
+      .maybeSingle();
+
+    console.log(`[Email Verification] Email verified successfully for user ${tokenData.userId}`);
+    
+    return c.json({ 
+      success: true, 
+      message: 'Email verified successfully!',
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: profile?.first_name || '',
+        lastName: profile?.last_name || '',
+        phone: profile?.phone || '',
+        location: profile?.location || '',
+        avatar: profile?.avatar_url || ''
+      }
+    });
+
+  } catch (error) {
+    console.error('[Email Verification] Error:', error);
+    return c.json({ error: 'Failed to verify email' }, 500);
+  }
+});
+
+// POST /make-server-a7e285ba/resend-verification
+app.post('/make-server-a7e285ba/resend-verification', async (c) => {
+  try {
+    const body = await c.req.json();
+    const { email } = body;
+
+    if (!email) {
+      return c.json({ error: 'Email is required' }, 400);
+    }
+
+    console.log(`[Email Verification] Resend request for email: ${email}`);
+
+    const supabaseAdmin = getSupabaseAdmin();
+
+    // Get user by email
+    const { data: profile } = await supabaseAdmin
+      .from('user_profiles')
+      .select('id, first_name, last_name, email')
+      .eq('email', email)
+      .maybeSingle();
+
+    if (!profile) {
+      // Don't reveal if email exists or not
+      return c.json({ 
+        success: true, 
+        message: 'If an account with that email exists and is unverified, you will receive a new verification email.' 
+      });
+    }
+
+    // Check if already verified
+    const { data: { user } } = await supabaseAdmin.auth.admin.getUserById(profile.id);
+    if (user?.email_confirmed_at) {
+      return c.json({ error: 'Email is already verified' }, 400);
+    }
+
+    // Delete old verification tokens for this user
+    const oldTokens = await kv.getByPrefix('verify_token:');
+    for (const item of oldTokens) {
+      const data = JSON.parse(item.value);
+      if (data.userId === profile.id) {
+        await kv.del(item.key);
+      }
+    }
+
+    // Generate new verification token and code
+    const verifyToken = generateToken();
+    const verifyCode = generateVerificationCode();
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    // Store token in KV store
+    const tokenData = {
+      userId: profile.id,
+      email: profile.email,
+      code: verifyCode,
+      type: 'email_verification',
+      expires: expiresAt.toISOString(),
+      createdAt: new Date().toISOString()
+    };
+
+    await kv.set(`verify_token:${verifyToken}`, JSON.stringify(tokenData));
+    console.log(`[Email Verification] New token stored for user ${profile.id}`);
+
+    // Send verification email
+    const appUrl = c.req.header('origin') || 'https://your-app-url.com';
+    const verificationUrl = `${appUrl}?verify_token=${verifyToken}`;
+    
+    const emailResult = await sendEmail({
+      to: email,
+      subject: 'Verify Your Email - Locksmith Marketplace',
+      html: emailVerificationTemplate({
+        userName: profile.first_name || 'there',
+        verificationUrl,
+        verificationCode: verifyCode
+      })
+    });
+
+    if (!emailResult.success) {
+      console.error(`[Email Verification] Failed to send email: ${emailResult.error}`);
+      return c.json({ error: 'Failed to send verification email' }, 500);
+    }
+
+    console.log(`[Email Verification] Email sent successfully to ${email}`);
+    return c.json({ 
+      success: true, 
+      message: 'Verification email sent! Please check your inbox.' 
+    });
+
+  } catch (error) {
+    console.error('[Email Verification] Error:', error);
+    return c.json({ error: 'Failed to resend verification email' }, 500);
+  }
+});
+
+// =====================================================
+// USER PREFERENCES ROUTES
+// =====================================================
+
+// GET user preferences
+app.get('/make-server-a7e285ba/user-preferences', async (c) => {
+  try {
+    const authHeader = c.req.header('Authorization');
+    const { user, error } = await verifyUser(authHeader);
+
+    if (error || !user) {
+      console.error('[User Preferences GET] Authentication failed:', error);
+      return c.json({ error: error || 'Unauthorized' }, 401);
+    }
+
+    const supabaseAdmin = getSupabaseAdmin();
+
+    // Get user preferences
+    const { data: preferences, error: fetchError } = await supabaseAdmin
+      .from('user_preferences')
+      .select('*')
+      .eq('user_id', user.id)
+      .single();
+
+    if (fetchError) {
+      // If no preferences exist, create default ones
+      if (fetchError.code === 'PGRST116') {
+        const { data: newPreferences, error: createError } = await supabaseAdmin
+          .from('user_preferences')
+          .insert({ user_id: user.id })
+          .select()
+          .single();
+
+        if (createError) {
+          console.error('[User Preferences GET] Error creating default preferences:', createError);
+          return c.json({ error: 'Failed to create preferences' }, 500);
+        }
+
+        console.log('[User Preferences GET] Created default preferences for user:', user.id);
+        return c.json({ preferences: newPreferences });
+      }
+
+      console.error('[User Preferences GET] Error fetching preferences:', fetchError);
+      return c.json({ error: 'Failed to fetch preferences' }, 500);
+    }
+
+    console.log('[User Preferences GET] Successfully retrieved preferences for user:', user.id);
+    return c.json({ preferences });
+
+  } catch (error) {
+    console.error('[User Preferences GET] Unexpected error:', error);
+    return c.json({ error: 'Internal server error' }, 500);
+  }
+});
+
+// PUT update user preferences
+app.put('/make-server-a7e285ba/user-preferences', async (c) => {
+  try {
+    const authHeader = c.req.header('Authorization');
+    const { user, error } = await verifyUser(authHeader);
+
+    if (error || !user) {
+      console.error('[User Preferences PUT] Authentication failed:', error);
+      return c.json({ error: error || 'Unauthorized' }, 401);
+    }
+
+    const updates = await c.req.json();
+    const supabaseAdmin = getSupabaseAdmin();
+
+    // Validate and sanitize updates
+    const allowedFields = [
+      'email_notifications',
+      'push_notifications',
+      'message_notifications',
+      'listing_notifications',
+      'deal_notifications',
+      'profile_visibility',
+      'show_email',
+      'show_phone',
+      'language',
+      'currency',
+      'theme'
+    ];
+
+    const sanitizedUpdates: any = {};
+    for (const [key, value] of Object.entries(updates)) {
+      if (allowedFields.includes(key)) {
+        sanitizedUpdates[key] = value;
+      }
+    }
+
+    // Ensure user_id cannot be changed
+    delete sanitizedUpdates.user_id;
+    delete sanitizedUpdates.id;
+    delete sanitizedUpdates.created_at;
+    delete sanitizedUpdates.updated_at;
+
+    // Update preferences
+    const { data: updatedPreferences, error: updateError } = await supabaseAdmin
+      .from('user_preferences')
+      .update(sanitizedUpdates)
+      .eq('user_id', user.id)
+      .select()
+      .single();
+
+    if (updateError) {
+      console.error('[User Preferences PUT] Error updating preferences:', updateError);
+      return c.json({ error: 'Failed to update preferences' }, 500);
+    }
+
+    console.log('[User Preferences PUT] Successfully updated preferences for user:', user.id);
+    return c.json({ preferences: updatedPreferences });
+
+  } catch (error) {
+    console.error('[User Preferences PUT] Unexpected error:', error);
+    return c.json({ error: 'Internal server error' }, 500);
   }
 });
 

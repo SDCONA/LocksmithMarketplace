@@ -5,7 +5,7 @@ import { Badge } from "./ui/badge";
 import { toast } from "sonner";
 import { 
   Heart, ExternalLink, Clock, Tag, ChevronDown, ChevronUp, 
-  Bookmark, Filter, RefreshCw, Store, X, Settings, Upload, Flag, AlertTriangle, Share2
+  Bookmark, Filter, RefreshCw, Store, X, Settings, Upload, Flag, AlertTriangle, Share2, Square
 } from "lucide-react";
 import { DealsService } from "../utils/services";
 import { isAdminUser, AuthService, User } from "../utils/auth";
@@ -15,6 +15,7 @@ import { Textarea } from "./ui/textarea";
 import { Label } from "./ui/label";
 import { DealModal, DealModalData } from "./DealModal";
 import { trackDealView } from "../utils/analytics";
+import { DealsBanner } from "./DealsBanner";
 
 interface Deal {
   id: string;
@@ -74,6 +75,7 @@ export function DealsPage({ onNavigateToAdmin, onNavigateToRetailerDeals, onNavi
   const [userRetailerIds, setUserRetailerIds] = useState<Set<string>>(new Set());
   const [isReporting, setIsReporting] = useState(false);
   const [reportReason, setReportReason] = useState('');
+  const [whiteBorders, setWhiteBorders] = useState(true);
 
   // Check authentication on mount
   useEffect(() => {
@@ -282,7 +284,7 @@ export function DealsPage({ onNavigateToAdmin, onNavigateToRetailerDeals, onNavi
   const regularDeals = deals.filter(deal => !deal.retailer_profile.is_always_on_top);
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-24 md:pb-8">
+    <div className="min-h-screen bg-white dark:bg-gray-900 pb-24 md:pb-8">
       {/* Deal Modal */}
       {selectedDeal && (
         <DealModal
@@ -293,31 +295,19 @@ export function DealsPage({ onNavigateToAdmin, onNavigateToRetailerDeals, onNavi
           formatTimeRemaining={formatTimeRemaining}
           calculateDiscount={calculateDiscount}
           isLoggedIn={isLoggedIn}
+          currentUser={currentUser}
+          userRetailerIds={userRetailerIds}
         />
       )}
 
       {/* Header */}
-      <div className="bg-white border-b sticky top-0 z-10">
+      <div className="bg-white dark:bg-gray-800 border-b z-10">
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between mb-3">
             <div>
               <h1 className="text-2xl font-bold">Deals</h1>
-              <p className="text-sm text-gray-600">
-                {deals.length} active deal{deals.length !== 1 ? 's' : ''} available
-              </p>
             </div>
             <div className="flex gap-2">
-              {isAdminUser(currentUser) && onNavigateToAdmin && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={onNavigateToAdmin}
-                  className="text-blue-600 border-blue-300 hover:bg-blue-50"
-                >
-                  <Settings className="h-4 w-4 mr-1" />
-                  Admin
-                </Button>
-              )}
               {isLoggedIn && onNavigateToRetailerDeals && (
                 <Button
                   onClick={onNavigateToRetailerDeals}
@@ -350,6 +340,14 @@ export function DealsPage({ onNavigateToAdmin, onNavigateToRetailerDeals, onNavi
               >
                 <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setWhiteBorders(!whiteBorders)}
+                title={whiteBorders ? "Show borders" : "Hide borders"}
+              >
+                <Square className="h-4 w-4" />
+              </Button>
             </div>
           </div>
 
@@ -375,7 +373,7 @@ export function DealsPage({ onNavigateToAdmin, onNavigateToRetailerDeals, onNavi
 
           {/* Collapsible Filters */}
           {showFilters && (
-            <div className="mt-3 p-4 bg-gray-50 rounded-lg border">
+            <div className="mt-3 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border">
               <div className="flex items-center justify-between mb-3">
                 <p className="text-sm font-medium">Select retailers to show:</p>
                 {excludedRetailers.length > 0 && (
@@ -431,6 +429,13 @@ export function DealsPage({ onNavigateToAdmin, onNavigateToRetailerDeals, onNavi
         </div>
       </div>
 
+      {/* Deals Banner - Scrolls with page */}
+      <div className="bg-white dark:bg-gray-900 z-10 border-b border-gray-200">
+        <div className="max-w-4xl mx-auto px-4 py-2">
+          <DealsBanner />
+        </div>
+      </div>
+
       {/* Deals Grid */}
       <div className="max-w-4xl mx-auto px-4 py-6">
         {isLoading ? (
@@ -441,7 +446,7 @@ export function DealsPage({ onNavigateToAdmin, onNavigateToRetailerDeals, onNavi
           <Card className="text-center py-12">
             <CardContent>
               <Tag className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-              <p className="text-gray-600">
+              <p className="text-gray-600 dark:text-gray-400">
                 {excludedRetailers.length > 0
                   ? "No deals available from selected retailers"
                   : "No active deals at the moment"}
@@ -461,7 +466,7 @@ export function DealsPage({ onNavigateToAdmin, onNavigateToRetailerDeals, onNavi
           <div className="space-y-4">
             {/* Priority Deals */}
             {priorityDeals.length > 0 && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 gap-2 -mx-4 md:mx-0 md:grid-cols-4 md:gap-4">
                 {priorityDeals.map((deal) => (
                   <DealCard
                     key={deal.id}
@@ -474,6 +479,7 @@ export function DealsPage({ onNavigateToAdmin, onNavigateToRetailerDeals, onNavi
                     onClick={openDealModal}
                     userRetailerIds={userRetailerIds}
                     currentUser={currentUser}
+                    whiteBorders={whiteBorders}
                   />
                 ))}
               </div>
@@ -481,7 +487,7 @@ export function DealsPage({ onNavigateToAdmin, onNavigateToRetailerDeals, onNavi
 
             {/* Regular Deals */}
             {regularDeals.length > 0 && (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 gap-2 -mx-4 md:mx-0 md:grid-cols-4 md:gap-4">
                 {regularDeals.map((deal) => (
                   <DealCard
                     key={deal.id}
@@ -494,6 +500,7 @@ export function DealsPage({ onNavigateToAdmin, onNavigateToRetailerDeals, onNavi
                     onClick={openDealModal}
                     userRetailerIds={userRetailerIds}
                     currentUser={currentUser}
+                    whiteBorders={whiteBorders}
                   />
                 ))}
               </div>
@@ -516,9 +523,10 @@ interface DealCardProps {
   onClick: (deal: Deal) => void;
   userRetailerIds: Set<string>;
   currentUser: User | null;
+  whiteBorders: boolean;
 }
 
-function DealCard({ deal, isSaved, onSave, formatTimeRemaining, calculateDiscount, isLoggedIn, onClick, userRetailerIds, currentUser }: DealCardProps) {
+function DealCard({ deal, isSaved, onSave, formatTimeRemaining, calculateDiscount, isLoggedIn, onClick, userRetailerIds, currentUser, whiteBorders }: DealCardProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const hasMultipleImages = deal.images && deal.images.length > 1;
   const primaryImage = deal.images && deal.images.length > 0 
@@ -538,11 +546,11 @@ function DealCard({ deal, isSaved, onSave, formatTimeRemaining, calculateDiscoun
   };
 
   return (
-    <Card className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer" onClick={() => onClick(deal)}>
+    <Card className={`overflow-hidden hover:shadow-lg transition-shadow cursor-pointer ${whiteBorders ? 'border-white' : ''}`} onClick={() => onClick(deal)}>
       <CardContent className="p-0">
         {/* Image Section */}
         {primaryImage && (
-          <div className="relative bg-gray-100 aspect-video">
+          <div className="relative bg-gray-100 w-full h-[200px]">
             <img
               src={primaryImage}
               alt={deal.title}
@@ -625,10 +633,10 @@ function DealCard({ deal, isSaved, onSave, formatTimeRemaining, calculateDiscoun
                   }
                 }
               }}
-              className="absolute top-[4rem] right-3 p-1 rounded-full hover:scale-110 transition-transform"
+              className="absolute top-[4rem] right-3 p-1 rounded-full bg-white shadow-md hover:scale-110 transition-transform"
               title="Share deal"
             >
-              <Share2 className="h-4 w-4 text-white drop-shadow-lg" />
+              <Share2 className="h-4 w-4 text-gray-700" />
             </button>
 
             {/* Discount Badge */}
@@ -643,7 +651,7 @@ function DealCard({ deal, isSaved, onSave, formatTimeRemaining, calculateDiscoun
         )}
 
         {/* Content Section */}
-        <div className="p-4">
+        <div className="p-4 pb-1">
           {/* Retailer Info */}
           <div className="flex items-start gap-2 mb-2">
             {deal.retailer_profile.logo_url ? (
@@ -655,7 +663,7 @@ function DealCard({ deal, isSaved, onSave, formatTimeRemaining, calculateDiscoun
             ) : (
               <Store className="h-4 w-4 text-gray-400" />
             )}
-            <span className="text-sm font-medium text-gray-700">
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
               {deal.retailer_profile.company_name}
             </span>
             {deal.retailer_profile.is_always_on_top && (
@@ -671,28 +679,12 @@ function DealCard({ deal, isSaved, onSave, formatTimeRemaining, calculateDiscoun
           </div>
 
           {/* Title */}
-          <h3 className="font-semibold text-lg mb-2 line-clamp-2">
+          <h3 className="font-semibold text-lg mb-2 line-clamp-2 min-h-[2.5rem]">
             {deal.title}
           </h3>
 
-
-
-          {/* Deal Type */}
-          {deal.deal_type && (
-            <Badge
-              variant="outline"
-              className="mb-3"
-              style={{
-                borderColor: deal.deal_type.color,
-                color: deal.deal_type.color,
-              }}
-            >
-              {deal.deal_type.name}
-            </Badge>
-          )}
-
           {/* Price Section */}
-          <div className="flex items-baseline gap-2 mb-3">
+          <div className="flex items-baseline gap-2">
             <span className="text-3xl font-bold text-green-600">
               ${deal.price.toFixed(2)}
             </span>

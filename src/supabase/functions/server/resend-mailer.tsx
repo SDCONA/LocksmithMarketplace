@@ -131,6 +131,7 @@ export function unreadMessagesTemplate(data: {
 }): string {
   const { userName, unreadCount, messagesUrl } = data;
   const plural = unreadCount > 1 ? 's' : '';
+  const settingsUrl = messagesUrl.replace('/messages', '/account');
 
   return `
 <!DOCTYPE html>
@@ -160,7 +161,7 @@ export function unreadMessagesTemplate(data: {
   <div style="text-align: center; padding: 20px; color: #9ca3af; font-size: 12px;">
     <p>You're receiving this email because you have an account on Locksmith Marketplace.</p>
     <p style="margin: 5px 0;">
-      <a href="${messagesUrl.replace('/messages', '/account')}" style="color: #667eea; text-decoration: none;">Manage notification preferences</a>
+      <a href="${settingsUrl}" style="color: #667eea; text-decoration: none;">Unsubscribe or manage notification preferences</a>
     </p>
     <p style="margin-top: 15px;">© 2025 Locksmith Marketplace. All rights reserved.</p>
   </div>
@@ -188,6 +189,7 @@ export function dealExpiringTemplate(data: {
     hour: '2-digit',
     minute: '2-digit'
   });
+  const settingsUrl = dashboardUrl.replace('/retailer-dashboard', '/account');
 
   return `
 <!DOCTYPE html>
@@ -223,7 +225,10 @@ export function dealExpiringTemplate(data: {
   </div>
   
   <div style="text-align: center; padding: 20px; color: #9ca3af; font-size: 12px;">
-    <p>© 2025 Locksmith Marketplace. All rights reserved.</p>
+    <p style="margin: 5px 0;">
+      <a href="${settingsUrl}" style="color: #667eea; text-decoration: none;">Unsubscribe or manage notification preferences</a>
+    </p>
+    <p style="margin-top: 15px;">© 2025 Locksmith Marketplace. All rights reserved.</p>
   </div>
 </body>
 </html>
@@ -240,6 +245,7 @@ export function dealExpiredTemplate(data: {
   dashboardUrl: string;
 }): string {
   const { retailerName, dealTitle, dealPrice, dashboardUrl } = data;
+  const settingsUrl = dashboardUrl.replace('/retailer-dashboard', '/account');
 
   return `
 <!DOCTYPE html>
@@ -274,7 +280,10 @@ export function dealExpiredTemplate(data: {
   </div>
   
   <div style="text-align: center; padding: 20px; color: #9ca3af; font-size: 12px;">
-    <p>© 2025 Locksmith Marketplace. All rights reserved.</p>
+    <p style="margin: 5px 0;">
+      <a href="${settingsUrl}" style="color: #667eea; text-decoration: none;">Unsubscribe or manage notification preferences</a>
+    </p>
+    <p style="margin-top: 15px;">© 2025 Locksmith Marketplace. All rights reserved.</p>
   </div>
 </body>
 </html>
@@ -439,6 +448,7 @@ export function listingExpiringTemplate(data: {
     hour: '2-digit',
     minute: '2-digit'
   });
+  const settingsUrl = renewUrl.split('?')[0].replace(/\/[^\/]*$/, '/account');
 
   return `
 <!DOCTYPE html>
@@ -475,7 +485,10 @@ export function listingExpiringTemplate(data: {
   </div>
   
   <div style="text-align: center; padding: 20px; color: #9ca3af; font-size: 12px;">
-    <p>© 2025 Locksmith Marketplace. All rights reserved.</p>
+    <p style="margin: 5px 0;">
+      <a href="${settingsUrl}" style="color: #667eea; text-decoration: none;">Unsubscribe or manage notification preferences</a>
+    </p>
+    <p style="margin-top: 15px;">© 2025 Locksmith Marketplace. All rights reserved.</p>
   </div>
 </body>
 </html>
@@ -492,6 +505,7 @@ export function listingExpiredTemplate(data: {
   relistUrl: string;
 }): string {
   const { userName, listingTitle, listingPrice, relistUrl } = data;
+  const settingsUrl = relistUrl.split('?')[0].replace(/\/[^\/]*$/, '/account');
 
   return `
 <!DOCTYPE html>
@@ -530,6 +544,118 @@ export function listingExpiredTemplate(data: {
     </div>
     
     <p style="font-size: 14px; color: #6b7280; margin-bottom: 0;">Thanks for being part of Locksmith Marketplace!</p>
+  </div>
+  
+  <div style="text-align: center; padding: 20px; color: #9ca3af; font-size: 12px;">
+    <p style="margin: 5px 0;">
+      <a href="${settingsUrl}" style="color: #667eea; text-decoration: none;">Unsubscribe or manage notification preferences</a>
+    </p>
+    <p style="margin-top: 15px;">© 2025 Locksmith Marketplace. All rights reserved.</p>
+  </div>
+</body>
+</html>
+  `;
+}
+
+/**
+ * Template: Email Verification
+ */
+export function emailVerificationTemplate(data: {
+  userName: string;
+  verificationUrl: string;
+  verificationCode: string;
+}): string {
+  const { userName, verificationUrl, verificationCode } = data;
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify Your Email</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 28px;">🎉 Welcome to Locksmith Marketplace!</h1>
+  </div>
+  
+  <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e5e7eb; border-top: none;">
+    <p style="font-size: 16px; margin-top: 0;">Hi ${userName},</p>
+    
+    <p style="font-size: 16px;">Thanks for signing up! We're excited to have you join our community of locksmiths and automotive key professionals.</p>
+    
+    <p style="font-size: 16px;">To complete your registration and start using Locksmith Marketplace, please verify your email address by clicking the button below:</p>
+    
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="${verificationUrl}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 16px 40px; text-decoration: none; border-radius: 8px; font-weight: 700; font-size: 18px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Verify Email Address</a>
+    </div>
+    
+    <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 25px 0; text-align: center;">
+      <p style="margin: 0 0 10px 0; font-size: 14px; color: #6b7280;">Or enter this verification code:</p>
+      <p style="margin: 0; font-size: 32px; font-weight: 700; color: #667eea; letter-spacing: 8px; font-family: 'Courier New', monospace;">${verificationCode}</p>
+    </div>
+    
+    <p style="font-size: 14px; color: #6b7280;">If you didn't create an account with Locksmith Marketplace, you can safely ignore this email.</p>
+    
+    <p style="font-size: 14px; color: #6b7280; margin-bottom: 0;">This verification link will expire in 24 hours.</p>
+  </div>
+  
+  <div style="text-align: center; padding: 20px; color: #9ca3af; font-size: 12px;">
+    <p>© 2025 Locksmith Marketplace. All rights reserved.</p>
+  </div>
+</body>
+</html>
+  `;
+}
+
+/**
+ * Template: Password Reset
+ */
+export function passwordResetTemplate(data: {
+  userName: string;
+  resetUrl: string;
+  resetCode: string;
+}): string {
+  const { userName, resetUrl, resetCode } = data;
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reset Your Password</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+  <div style="background: linear-gradient(135deg, #f59e0b 0%, #ef4444 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 28px;">🔐 Password Reset Request</h1>
+  </div>
+  
+  <div style="background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; border: 1px solid #e5e7eb; border-top: none;">
+    <p style="font-size: 16px; margin-top: 0;">Hi ${userName},</p>
+    
+    <p style="font-size: 16px;">We received a request to reset your password for your Locksmith Marketplace account.</p>
+    
+    <p style="font-size: 16px;">Click the button below to choose a new password:</p>
+    
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="${resetUrl}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 16px 40px; text-decoration: none; border-radius: 8px; font-weight: 700; font-size: 18px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Reset Password</a>
+    </div>
+    
+    <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 25px 0; text-align: center;">
+      <p style="margin: 0 0 10px 0; font-size: 14px; color: #6b7280;">Or enter this reset code:</p>
+      <p style="margin: 0; font-size: 32px; font-weight: 700; color: #ef4444; letter-spacing: 8px; font-family: 'Courier New', monospace;">${resetCode}</p>
+    </div>
+    
+    <div style="background: #fef2f2; border: 1px solid #ef4444; border-radius: 8px; padding: 15px; margin: 20px 0;">
+      <p style="margin: 0; font-size: 14px; color: #991b1b;">
+        <strong>⚠️ Security Notice:</strong><br>
+        If you didn't request a password reset, please ignore this email or contact support if you're concerned about your account security.
+      </p>
+    </div>
+    
+    <p style="font-size: 14px; color: #6b7280; margin-bottom: 0;">This reset link will expire in 1 hour for security reasons.</p>
   </div>
   
   <div style="text-align: center; padding: 20px; color: #9ca3af; font-size: 12px;">
