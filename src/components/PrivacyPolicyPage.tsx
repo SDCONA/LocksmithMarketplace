@@ -132,6 +132,30 @@ export function PrivacyPolicyPage({ onBack }: PrivacyPolicyPageProps) {
           </p>
         </section>
 
+        <section>
+          <h2 className="text-2xl font-semibold text-gray-900 mb-4">reCAPTCHA Protection</h2>
+          <p className="text-gray-700">
+            This site is protected by reCAPTCHA and the Google{' '}
+            <a 
+              href="https://policies.google.com/privacy" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="text-blue-600 hover:text-blue-800 underline"
+            >
+              Privacy Policy
+            </a>{' '}
+            and{' '}
+            <a 
+              href="https://policies.google.com/terms" 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="text-blue-600 hover:text-blue-800 underline"
+            >
+              Terms of Service
+            </a>{' '}
+            apply.
+          </p>
+        </section>
 
       </div>
     </div>
