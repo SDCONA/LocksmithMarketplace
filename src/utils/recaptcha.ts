@@ -1,10 +1,7 @@
 // reCAPTCHA v3 Utility
 // Handles token generation for form submissions
 
-// Get reCAPTCHA site key from environment
-// You must set VITE_RECAPTCHA_SITE_KEY in your environment
-// Get your own keys from: https://www.google.com/recaptcha/admin
-export const RECAPTCHA_SITE_KEY = import.meta.env?.VITE_RECAPTCHA_SITE_KEY || '';
+import { RECAPTCHA_SITE_KEY } from './recaptcha-config';
 
 let isRecaptchaLoaded = false;
 
@@ -20,7 +17,6 @@ export function loadRecaptchaScript(): Promise<void> {
 
     if (!RECAPTCHA_SITE_KEY) {
       // STRICT MODE: reCAPTCHA is REQUIRED
-      console.error('[reCAPTCHA] RECAPTCHA_SITE_KEY is not configured - this is required!');
       reject(new Error('reCAPTCHA site key not configured'));
       return;
     }
@@ -43,7 +39,6 @@ export function loadRecaptchaScript(): Promise<void> {
     };
     
     script.onerror = () => {
-      console.error('[reCAPTCHA] Failed to load reCAPTCHA script');
       reject(new Error('Failed to load reCAPTCHA script'));
     };
 
