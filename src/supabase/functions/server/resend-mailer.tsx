@@ -741,3 +741,252 @@ export function policyUpdateTemplate(data: {
 </html>
   `;
 }
+
+/**
+ * Template: Daily Digest - Consolidated Email
+ * Includes: Messages, Deals, Listings - all in one email
+ */
+export function dailyDigestTemplate(data: {
+  userName: string;
+  unreadMessages?: {
+    count: number;
+    conversationIds: string[];
+  };
+  dealsExpiring?: Array<{
+    title: string;
+    expiresAt: string;
+  }>;
+  dealsExpired?: Array<{
+    title: string;
+    price: string;
+  }>;
+  newDeals?: Array<{
+    id: string;
+    title: string;
+    price: string;
+    originalPrice?: string;
+    retailerName: string;
+  }>;
+  listingsExpiring?: Array<{
+    title: string;
+    price: string;
+    expiresAt: string;
+  }>;
+  listingsExpired?: Array<{
+    title: string;
+    price: string;
+  }>;
+  messagesUrl: string;
+  dealsUrl: string;
+  dashboardUrl: string;
+  accountUrl: string;
+}): string {
+  const { 
+    userName, 
+    unreadMessages, 
+    dealsExpiring, 
+    dealsExpired, 
+    newDeals,
+    listingsExpiring,
+    listingsExpired,
+    messagesUrl, 
+    dealsUrl, 
+    dashboardUrl,
+    accountUrl 
+  } = data;
+
+  // Calculate total number of updates
+  const totalUpdates = 
+    (unreadMessages ? 1 : 0) +
+    (dealsExpiring && dealsExpiring.length > 0 ? 1 : 0) +
+    (dealsExpired && dealsExpired.length > 0 ? 1 : 0) +
+    (newDeals && newDeals.length > 0 ? 1 : 0) +
+    (listingsExpiring && listingsExpiring.length > 0 ? 1 : 0) +
+    (listingsExpired && listingsExpired.length > 0 ? 1 : 0);
+
+  // Generate sections HTML
+  let sectionsHtml = '';
+
+  // 1. Unread Messages Section
+  if (unreadMessages && unreadMessages.count > 0) {
+    sectionsHtml += `
+    <div style="background: white; border-radius: 8px; padding: 20px; margin-bottom: 20px; border-left: 4px solid #667eea;">
+      <h2 style="margin: 0 0 10px 0; font-size: 20px; color: #1f2937;">💬 Unread Messages</h2>
+      <p style="margin: 0 0 15px 0; font-size: 16px; color: #4b5563;">
+        You have <strong>${unreadMessages.count} unread conversation${unreadMessages.count > 1 ? 's' : ''}</strong> waiting for you.
+      </p>
+      <a href="${messagesUrl}" style="display: inline-block; background: #667eea; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px;">View Messages</a>
+    </div>
+    `;
+  }
+
+  // 2. Deals Expiring Section (for retailers)
+  if (dealsExpiring && dealsExpiring.length > 0) {
+    const dealsList = dealsExpiring.slice(0, 3).map(deal => {
+      const expiryDate = new Date(deal.expiresAt).toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      return `
+      <div style="background: #fef2f2; padding: 12px; margin: 8px 0; border-radius: 6px; border-left: 3px solid #ef4444;">
+        <p style="margin: 0; font-size: 15px; color: #1f2937; font-weight: 600;">${deal.title}</p>
+        <p style="margin: 5px 0 0 0; font-size: 13px; color: #ef4444;">Expires: ${expiryDate}</p>
+      </div>
+      `;
+    }).join('');
+
+    sectionsHtml += `
+    <div style="background: white; border-radius: 8px; padding: 20px; margin-bottom: 20px; border-left: 4px solid #ef4444;">
+      <h2 style="margin: 0 0 10px 0; font-size: 20px; color: #1f2937;">⏰ Deals Expiring Soon</h2>
+      <p style="margin: 0 0 15px 0; font-size: 16px; color: #4b5563;">
+        ${dealsExpiring.length} of your deal${dealsExpiring.length > 1 ? 's expire' : ' expires'} in the next 24 hours.
+      </p>
+      ${dealsList}
+      ${dealsExpiring.length > 3 ? `<p style="margin: 10px 0 0 0; font-size: 14px; color: #6b7280;">+ ${dealsExpiring.length - 3} more</p>` : ''}
+      <a href="${dashboardUrl}" style="display: inline-block; background: #ef4444; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px; margin-top: 10px;">Manage Deals</a>
+    </div>
+    `;
+  }
+
+  // 3. Deals Expired Section (for retailers)
+  if (dealsExpired && dealsExpired.length > 0) {
+    const expiredList = dealsExpired.slice(0, 3).map(deal => `
+      <div style="background: #f3f4f6; padding: 12px; margin: 8px 0; border-radius: 6px;">
+        <p style="margin: 0; font-size: 15px; color: #1f2937; font-weight: 600;">${deal.title}</p>
+        <p style="margin: 5px 0 0 0; font-size: 13px; color: #6b7280;">Price: ${deal.price}</p>
+      </div>
+    `).join('');
+
+    sectionsHtml += `
+    <div style="background: white; border-radius: 8px; padding: 20px; margin-bottom: 20px; border-left: 4px solid #6b7280;">
+      <h2 style="margin: 0 0 10px 0; font-size: 20px; color: #1f2937;">📦 Deals Expired</h2>
+      <p style="margin: 0 0 15px 0; font-size: 16px; color: #4b5563;">
+        ${dealsExpired.length} of your deal${dealsExpired.length > 1 ? 's have' : ' has'} expired and been removed.
+      </p>
+      ${expiredList}
+      ${dealsExpired.length > 3 ? `<p style="margin: 10px 0 0 0; font-size: 14px; color: #6b7280;">+ ${dealsExpired.length - 3} more</p>` : ''}
+      <a href="${dashboardUrl}" style="display: inline-block; background: #6b7280; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px; margin-top: 10px;">Upload New Deals</a>
+    </div>
+    `;
+  }
+
+  // 4. New Deals Section (for all users)
+  if (newDeals && newDeals.length > 0) {
+    const newDealsList = newDeals.slice(0, 4).map(deal => `
+      <div style="background: #ecfdf5; padding: 12px; margin: 8px 0; border-radius: 6px; border-left: 3px solid #10b981;">
+        <p style="margin: 0; font-size: 15px; color: #1f2937; font-weight: 600;">${deal.title}</p>
+        <p style="margin: 5px 0 0 0; font-size: 13px; color: #6b7280;">by ${deal.retailerName}</p>
+        <div style="margin-top: 5px;">
+          <span style="font-size: 18px; font-weight: 700; color: #10b981;">${deal.price}</span>
+          ${deal.originalPrice ? `<span style="font-size: 13px; color: #9ca3af; text-decoration: line-through; margin-left: 8px;">${deal.originalPrice}</span>` : ''}
+        </div>
+      </div>
+    `).join('');
+
+    sectionsHtml += `
+    <div style="background: white; border-radius: 8px; padding: 20px; margin-bottom: 20px; border-left: 4px solid #10b981;">
+      <h2 style="margin: 0 0 10px 0; font-size: 20px; color: #1f2937;">🔥 New Deals</h2>
+      <p style="margin: 0 0 15px 0; font-size: 16px; color: #4b5563;">
+        ${newDeals.length} fresh deal${newDeals.length > 1 ? 's' : ''} posted in the last 24 hours!
+      </p>
+      ${newDealsList}
+      ${newDeals.length > 4 ? `<p style="margin: 10px 0 0 0; font-size: 14px; color: #6b7280;">+ ${newDeals.length - 4} more</p>` : ''}
+      <a href="${dealsUrl}" style="display: inline-block; background: #10b981; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px; margin-top: 10px;">Browse All Deals</a>
+    </div>
+    `;
+  }
+
+  // 5. Listings Expiring Section
+  if (listingsExpiring && listingsExpiring.length > 0) {
+    const listingsList = listingsExpiring.slice(0, 3).map(listing => {
+      const expiryDate = new Date(listing.expiresAt).toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+      return `
+      <div style="background: #fef2f2; padding: 12px; margin: 8px 0; border-radius: 6px; border-left: 3px solid #ef4444;">
+        <p style="margin: 0; font-size: 15px; color: #1f2937; font-weight: 600;">${listing.title}</p>
+        <p style="margin: 5px 0 0 0; font-size: 13px; color: #4b5563;">Price: ${listing.price}</p>
+        <p style="margin: 5px 0 0 0; font-size: 13px; color: #ef4444;">Expires: ${expiryDate}</p>
+      </div>
+      `;
+    }).join('');
+
+    sectionsHtml += `
+    <div style="background: white; border-radius: 8px; padding: 20px; margin-bottom: 20px; border-left: 4px solid #f59e0b;">
+      <h2 style="margin: 0 0 10px 0; font-size: 20px; color: #1f2937;">⏰ Listings Expiring Soon</h2>
+      <p style="margin: 0 0 15px 0; font-size: 16px; color: #4b5563;">
+        ${listingsExpiring.length} of your listing${listingsExpiring.length > 1 ? 's expire' : ' expires'} in the next 24 hours.
+      </p>
+      ${listingsList}
+      ${listingsExpiring.length > 3 ? `<p style="margin: 10px 0 0 0; font-size: 14px; color: #6b7280;">+ ${listingsExpiring.length - 3} more</p>` : ''}
+      <a href="${accountUrl}" style="display: inline-block; background: #f59e0b; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px; margin-top: 10px;">Manage Listings</a>
+    </div>
+    `;
+  }
+
+  // 6. Listings Expired Section
+  if (listingsExpired && listingsExpired.length > 0) {
+    const expiredListingsList = listingsExpired.slice(0, 3).map(listing => `
+      <div style="background: #f3f4f6; padding: 12px; margin: 8px 0; border-radius: 6px;">
+        <p style="margin: 0; font-size: 15px; color: #1f2937; font-weight: 600;">${listing.title}</p>
+        <p style="margin: 5px 0 0 0; font-size: 13px; color: #6b7280;">Price: ${listing.price}</p>
+      </div>
+    `).join('');
+
+    sectionsHtml += `
+    <div style="background: white; border-radius: 8px; padding: 20px; margin-bottom: 20px; border-left: 4px solid #6b7280;">
+      <h2 style="margin: 0 0 10px 0; font-size: 20px; color: #1f2937;">📦 Listings Expired</h2>
+      <p style="margin: 0 0 15px 0; font-size: 16px; color: #4b5563;">
+        ${listingsExpired.length} of your listing${listingsExpired.length > 1 ? 's have' : ' has'} expired and been archived.
+      </p>
+      ${expiredListingsList}
+      ${listingsExpired.length > 3 ? `<p style="margin: 10px 0 0 0; font-size: 14px; color: #6b7280;">+ ${listingsExpired.length - 3} more</p>` : ''}
+      <a href="${accountUrl}" style="display: inline-block; background: #6b7280; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px; margin-top: 10px;">View My Listings</a>
+    </div>
+    `;
+  }
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Your Daily Update</title>
+</head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background: #f3f4f6;">
+  <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px 10px 0 0; text-align: center;">
+    <h1 style="color: white; margin: 0; font-size: 28px;">📬 Your Daily Update</h1>
+    <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 16px;">${totalUpdates} update${totalUpdates > 1 ? 's' : ''} for you today</p>
+  </div>
+  
+  <div style="background: #f9fafb; padding: 30px; border: 1px solid #e5e7eb; border-top: none;">
+    <p style="font-size: 16px; margin-top: 0;">Hi ${userName},</p>
+    
+    <p style="font-size: 16px; margin-bottom: 25px;">Here's what's happening on Locksmith Marketplace:</p>
+    
+    ${sectionsHtml}
+    
+    <div style="background: #eff6ff; border: 1px solid #3b82f6; border-radius: 8px; padding: 15px; margin: 25px 0; text-align: center;">
+      <p style="margin: 0; color: #1e40af; font-size: 14px;">
+        💡 <strong>Tip:</strong> Quick responses and fresh listings lead to better deals!
+      </p>
+    </div>
+  </div>
+  
+  <div style="text-align: center; padding: 20px; color: #9ca3af; font-size: 12px;">
+    <p>You're receiving this daily digest because you have an account on Locksmith Marketplace.</p>
+    <p style="margin: 5px 0;">
+      <a href="${accountUrl}" style="color: #667eea; text-decoration: none;">Manage email preferences</a>
+    </p>
+    <p style="margin-top: 15px;">© 2025 Locksmith Marketplace. All rights reserved.</p>
+  </div>
+</body>
+</html>
+  `;
+}

@@ -3011,6 +3011,39 @@ app.get("/make-server-a7e285ba/users/:userId/listings", async (c) => {
   }
 });
 
+// Get user's posts
+app.get("/make-server-a7e285ba/users/:userId/posts", async (c) => {
+  try {
+    const userId = c.req.param('userId');
+    const supabaseAdmin = getSupabaseAdmin();
+
+    const { data: posts, error } = await supabaseAdmin
+      .from('user_posts')
+      .select(`
+        *,
+        user_profiles!user_posts_user_id_fkey (
+          id,
+          first_name,
+          last_name,
+          avatar_url,
+          is_verified
+        )
+      `)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error(`Error fetching user posts: ${error.message}`);
+      return c.json({ error: error.message }, 400);
+    }
+
+    return c.json({ success: true, posts: posts || [] });
+  } catch (error) {
+    console.error(`Error fetching user posts: ${error}`);
+    return c.json({ error: "Failed to fetch user posts" }, 500);
+  }
+});
+
 // ============================================
 // REVIEWS & RATINGS ROUTES
 // ============================================

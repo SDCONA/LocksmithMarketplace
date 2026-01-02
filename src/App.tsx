@@ -513,6 +513,27 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
   
+  // Handle initial page load from URL (e.g., email links to /messages)
+  useEffect(() => {
+    // Check for query parameter (e.g., ?section=messages)
+    const urlParams = new URLSearchParams(window.location.search);
+    const sectionParam = urlParams.get('section');
+    
+    // Check for path-based routing (e.g., /messages)
+    const path = window.location.pathname.slice(1);
+    
+    const validSections = ['retailers', 'search', 'marketplace', 'messages', 'account', 'listing', 'settings', 'profile', 'help', 'seller-listings', 'promote', 'contact', 'privacy', 'terms', 'deals', 'marketplace-profile', 'saved-items', 'saved-marketplace-listings', 'saved-deals', 'archived-listings', 'admin', 'retailer-dashboard', 'my-retailer-deals'];
+    
+    // Prioritize query parameter over path
+    if (sectionParam && validSections.includes(sectionParam)) {
+      setCurrentSection(sectionParam as any);
+      // Clean URL
+      window.history.replaceState({}, '', `/${sectionParam}`);
+    } else if (path && validSections.includes(path)) {
+      setCurrentSection(path as any);
+    }
+  }, []); // Only run on mount
+  
   // Handle email verification and password reset tokens from URL
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);

@@ -391,6 +391,22 @@
 - UPDATE: Retailer users can update their own → `owner_user_id = auth.uid()`
 - SELECT: Retailer users can view their own → `owner_user_id = auth.uid()`
 
+**Columns:**
+- `id` (uuid, NOT NULL, PRIMARY KEY)
+- `created_at` (timestamp with time zone, nullable)
+- `updated_at` (timestamp with time zone, nullable)
+- `company_name` (text, NOT NULL)
+- `description` (text, nullable)
+- `logo_url` (text, nullable)
+- `website_url` (text, nullable)
+- `contact_email` (text, nullable)
+- `contact_phone` (text, nullable)
+- `owner_user_id` (uuid, nullable) ⚠️ **Links to user_profiles.id**
+- `daily_deal_limit` (integer, NOT NULL)
+- `has_csv_permission` (boolean, nullable)
+- `is_always_on_top` (boolean, nullable)
+- `is_active` (boolean, nullable)
+
 ---
 
 ### 30. saved_deals
@@ -440,6 +456,40 @@
 - INSERT: Users can insert own → `id = auth.uid()`
 - UPDATE: Users can update own → `id = auth.uid()`
 
+**Columns:**
+- `id` (uuid, NOT NULL, PRIMARY KEY) ⚠️ **Referenced by auth.users(id)**
+- `email` (text, NOT NULL, UNIQUE)
+- `first_name` (text, nullable)
+- `last_name` (text, nullable)
+- `avatar_url` (text, nullable)
+- `phone` (text, nullable)
+- `location` (text, nullable)
+- `bio` (text, nullable)
+- `website` (text, nullable)
+- `joined_date` (timestamp with time zone, nullable)
+- `last_active` (timestamp with time zone, nullable)
+- `is_verified` (boolean, nullable)
+- `is_admin` (boolean, nullable)
+- `is_banned` (boolean, nullable)
+- `ban_reason` (text, nullable)
+- `rating` (numeric, nullable)
+- `total_reviews` (integer, nullable)
+- `total_sales` (integer, nullable)
+- `response_rate` (integer, nullable)
+- `avg_response_time` (integer, nullable)
+- `phone_public` (boolean, nullable)
+- `email_public` (boolean, nullable)
+- `show_last_active` (boolean, nullable)
+- `auto_reply` (boolean, nullable)
+- `auto_reply_message` (text, nullable)
+- `created_at` (timestamp with time zone, nullable)
+- `updated_at` (timestamp with time zone, nullable)
+- `address` (jsonb, nullable)
+
+**⚠️ CRITICAL:** This table does NOT have a `retailer_profile_id` column!
+- To find if a user is a retailer: Query `retailer_profiles` WHERE `owner_user_id = user.id`
+- **ALWAYS get retailer emails from `user_profiles.email` (via `owner_user_id`), NOT from `retailer_profiles.contact_email`** because retailers can change their email!
+
 ---
 
 ### 36. user_reviews
@@ -485,6 +535,12 @@
 ## 📝 INCOMPLETE DATA WARNING
 
 The marketplace_listings table appears truncated. Additional columns may exist beyond `images`.
+
+---
+
+## 🔧 SYSTEM NOTES
+
+- **Email Links:** Cron jobs use query parameter routing (`?section=messages`) to avoid backend route conflicts. No URL storage table needed - SUPABASE_URL is converted to frontend URL dynamically.
 
 ---
 

@@ -1,6 +1,6 @@
 import { Hono } from "npm:hono";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { sendEmail, unreadMessagesTemplate, dealExpiringTemplate, dealExpiredTemplate, newDealsDigestTemplate, listingExpiringTemplate, listingExpiredTemplate } from "./resend-mailer.tsx";
+import { sendEmail, unreadMessagesTemplate, dealExpiringTemplate, dealExpiredTemplate, newDealsDigestTemplate, listingExpiringTemplate, listingExpiredTemplate, dailyDigestTemplate } from "./resend-mailer.tsx";
 
 const cronApp = new Hono();
 
@@ -126,8 +126,13 @@ async function checkUnreadMessages(): Promise<UnreadMessageSummary[]> {
 async function sendUnreadNotifications(summaries: UnreadMessageSummary[]): Promise<void> {
   console.log(`[CRON] Preparing to send notifications to ${summaries.length} users`);
 
-  const baseUrl = Deno.env.get('SUPABASE_URL')?.replace('/functions/v1', '') || 'https://yourdomain.com';
-  const messagesUrl = `${baseUrl}/messages`;
+  // Frontend URL is the production domain
+  const baseUrl = 'https://www.locksmithmarketplace.com';
+  
+  // Use query parameter routing
+  const messagesUrl = `${baseUrl}?section=messages`;
+  
+  console.log(`[CRON] Using messages URL for emails: ${messagesUrl}`);
 
   for (const summary of summaries) {
     console.log(`[CRON] User ${summary.userName} (${summary.userEmail}) has ${summary.unreadCount} unread conversation(s)`);
@@ -241,7 +246,10 @@ async function findExpiringDeals(): Promise<ExpiringDeal[]> {
         retailer_profile_id,
         retailer_profiles!inner (
           company_name,
-          contact_email
+          owner_user_id,
+          user_profiles!inner (
+            email
+          )
         )
       `)
       .eq('status', 'active')
@@ -269,7 +277,7 @@ async function findExpiringDeals(): Promise<ExpiringDeal[]> {
       external_url: deal.external_url,
       retailer_profile_id: deal.retailer_profile_id,
       retailerName: deal.retailer_profiles.company_name || 'Retailer',
-      retailerEmail: deal.retailer_profiles.contact_email,
+      retailerEmail: deal.retailer_profiles.user_profiles.email,
     }));
 
   } catch (error) {
@@ -294,7 +302,10 @@ async function processExpiredDeals(): Promise<ExpiredDeal[]> {
         retailer_profile_id,
         retailer_profiles!inner (
           company_name,
-          contact_email
+          owner_user_id,
+          user_profiles!inner (
+            email
+          )
         )
       `)
       .eq('status', 'active')
@@ -331,7 +342,7 @@ async function processExpiredDeals(): Promise<ExpiredDeal[]> {
       price: deal.price,
       retailer_profile_id: deal.retailer_profile_id,
       retailerName: deal.retailer_profiles.company_name || 'Retailer',
-      retailerEmail: deal.retailer_profiles.contact_email,
+      retailerEmail: deal.retailer_profiles.user_profiles.email,
     }));
 
   } catch (error) {
@@ -343,12 +354,13 @@ async function processExpiredDeals(): Promise<ExpiredDeal[]> {
 async function sendExpiringDealNotifications(deals: ExpiringDeal[]): Promise<void> {
   console.log(`[CRON] Sending expiration warnings for ${deals.length} deals...`);
 
-  const baseUrl = Deno.env.get('SUPABASE_URL')?.replace('/functions/v1', '') || 'https://yourdomain.com';
+  const baseUrl = 'https://www.locksmithmarketplace.com';
 
   for (const deal of deals) {
     try {
-      const dealUrl = `${baseUrl}/deals/${deal.id}`;
-      const dashboardUrl = `${baseUrl}/retailer-dashboard`;
+      // Use query parameters for frontend routing
+      const dealUrl = `${baseUrl}?section=deals`;
+      const dashboardUrl = `${baseUrl}?section=retailer-dashboard`;
 
       const emailHtml = dealExpiringTemplate({
         retailerName: deal.retailerName,
@@ -382,8 +394,8 @@ async function sendExpiringDealNotifications(deals: ExpiringDeal[]): Promise<voi
 async function sendExpiredDealNotifications(deals: ExpiredDeal[]): Promise<void> {
   console.log(`[CRON] Sending expired notifications for ${deals.length} deals...`);
 
-  const baseUrl = Deno.env.get('SUPABASE_URL')?.replace('/functions/v1', '') || 'https://yourdomain.com';
-  const dashboardUrl = `${baseUrl}/retailer-dashboard`;
+  const baseUrl = 'https://www.locksmithmarketplace.com';
+  const dashboardUrl = `${baseUrl}?section=retailer-dashboard`;
 
   for (const deal of deals) {
     try {
@@ -553,8 +565,8 @@ cronApp.post("/deal-digest-cron", async (c) => {
 
     console.log(`[CRON] Sending digest to ${users?.length || 0} users`);
 
-    const baseUrl = Deno.env.get('SUPABASE_URL')?.replace('/functions/v1', '') || 'https://yourdomain.com';
-    const dealsUrl = `${baseUrl}/deals`;
+    const baseUrl = 'https://www.locksmithmarketplace.com';
+    const dealsUrl = `${baseUrl}?section=deals`;
 
     let emailsSent = 0;
 
@@ -569,14 +581,14 @@ cronApp.post("/deal-digest-cron", async (c) => {
           price: `$${deal.price.toFixed(2)}`,
           originalPrice: deal.original_price ? `$${deal.original_price.toFixed(2)}` : undefined,
           retailerName: deal.retailer_profiles.company_name || 'Retailer',
-          dealUrl: `${baseUrl}/deals`,
+          dealUrl: `${baseUrl}?section=deals`,
         }));
 
         const emailHtml = newDealsDigestTemplate({
           userName,
           deals: dealsForEmail,
           dealsUrl,
-          unsubscribeUrl: `${baseUrl}/account`,
+          unsubscribeUrl: `${baseUrl}?section=account`,
         });
 
         const result = await sendEmail({
@@ -791,12 +803,12 @@ async function processExpiredListings(): Promise<ExpiredListing[]> {
 async function sendExpiringListingNotifications(listings: ExpiringListing[]): Promise<void> {
   console.log(`[CRON] Sending expiration warnings for ${listings.length} listings...`);
 
-  const baseUrl = Deno.env.get('SUPABASE_URL')?.replace('/functions/v1', '') || 'https://yourdomain.com';
+  const baseUrl = 'https://www.locksmithmarketplace.com';
 
   for (const listing of listings) {
     try {
-      const listingUrl = `${baseUrl}/marketplace`;
-      const accountUrl = `${baseUrl}/account`;
+      const listingUrl = `${baseUrl}?section=marketplace`;
+      const accountUrl = `${baseUrl}?section=account`;
 
       const emailHtml = listingExpiringTemplate({
         userName: listing.sellerName,
@@ -831,8 +843,8 @@ async function sendExpiringListingNotifications(listings: ExpiringListing[]): Pr
 async function sendExpiredListingNotifications(listings: ExpiredListing[]): Promise<void> {
   console.log(`[CRON] Sending expired notifications for ${listings.length} listings...`);
 
-  const baseUrl = Deno.env.get('SUPABASE_URL')?.replace('/functions/v1', '') || 'https://yourdomain.com';
-  const accountUrl = `${baseUrl}/account`;
+  const baseUrl = 'https://www.locksmithmarketplace.com';
+  const accountUrl = `${baseUrl}?section=account`;
 
   for (const listing of listings) {
     try {
@@ -895,6 +907,331 @@ cronApp.post("/listing-expiration-cron", async (c) => {
   } catch (error) {
     console.error('[CRON] Fatal error in listing expiration cron:', error);
     
+    return c.json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString(),
+    }, 500);
+  }
+});
+
+// ============================================
+// DAILY DIGEST CRON (runs once daily at 9 AM)
+// Consolidates ALL notifications into ONE email per user
+// ============================================
+
+interface UserDigestData {
+  userId: string;
+  userEmail: string;
+  userName: string;
+  unreadMessages?: {
+    count: number;
+    conversationIds: string[];
+  };
+  dealsExpiring?: Array<{
+    title: string;
+    expiresAt: string;
+  }>;
+  dealsExpired?: Array<{
+    title: string;
+    price: string;
+  }>;
+  listingsExpiring?: Array<{
+    title: string;
+    price: string;
+    expiresAt: string;
+  }>;
+  listingsExpired?: Array<{
+    title: string;
+    price: string;
+  }>;
+  newDeals?: Array<{
+    id: string;
+    title: string;
+    price: string;
+    originalPrice?: string;
+    retailerName: string;
+  }>;
+}
+
+cronApp.post("/daily-digest-cron", async (c) => {
+  const startTime = Date.now();
+  console.log(`[DAILY DIGEST] ========================================`);
+  console.log(`[DAILY DIGEST] Daily digest started at ${new Date().toISOString()}`);
+  console.log(`[DAILY DIGEST] ========================================`);
+
+  try {
+    const supabaseAdmin = getSupabaseAdmin();
+    const now = new Date();
+    const in24Hours = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+    // Get all users
+    console.log(`[DAILY DIGEST] Step 1: Fetching all users...`);
+    const { data: allUsers, error: usersError } = await supabaseAdmin
+      .from('user_profiles')
+      .select('id, email, first_name, last_name')
+      .not('email', 'is', null);
+
+    if (usersError) {
+      console.error('[DAILY DIGEST] Error fetching users:', usersError);
+      throw usersError;
+    }
+
+    console.log(`[DAILY DIGEST] Found ${allUsers?.length || 0} users`);
+
+    // Gather global data (deals available to everyone)
+    console.log(`[DAILY DIGEST] Step 2: Fetching new deals (last 24 hours)...`);
+    const { data: newDealsData, error: newDealsError } = await supabaseAdmin
+      .from('deals')
+      .select(`
+        id,
+        title,
+        price,
+        original_price,
+        retailer_profiles!inner (
+          company_name
+        )
+      `)
+      .eq('status', 'active')
+      .gte('created_at', last24Hours.toISOString())
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    if (newDealsError) {
+      console.error('[DAILY DIGEST] Error fetching new deals:', newDealsError);
+    }
+
+    const globalNewDeals = newDealsData?.map((deal: any) => ({
+      id: deal.id,
+      title: deal.title,
+      price: `$${deal.price.toFixed(2)}`,
+      originalPrice: deal.original_price ? `$${deal.original_price.toFixed(2)}` : undefined,
+      retailerName: deal.retailer_profiles.company_name || 'Retailer',
+    })) || [];
+
+    console.log(`[DAILY DIGEST] Found ${globalNewDeals.length} new deals in last 24 hours`);
+
+    // Build digest data for each user
+    const userDigests: UserDigestData[] = [];
+
+    for (const user of allUsers || []) {
+      const userName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'User';
+      const digestData: UserDigestData = {
+        userId: user.id,
+        userEmail: user.email,
+        userName,
+      };
+
+      // 1. Check unread messages
+      const { data: unreadMessages } = await supabaseAdmin
+        .from('messages')
+        .select(`
+          id,
+          conversation_id,
+          sender_id,
+          conversations!inner (
+            id,
+            buyer_id,
+            seller_id,
+            is_admin_warning
+          )
+        `)
+        .eq('is_read', false);
+
+      if (unreadMessages && unreadMessages.length > 0) {
+        const userConversations = new Set<string>();
+        for (const msg of unreadMessages) {
+          const conv = msg.conversations;
+          if (!conv) continue;
+
+          let isRecipient = false;
+          if (conv.is_admin_warning && conv.buyer_id === user.id) {
+            isRecipient = true;
+          } else if (msg.sender_id === conv.buyer_id && conv.seller_id === user.id) {
+            isRecipient = true;
+          } else if (msg.sender_id === conv.seller_id && conv.buyer_id === user.id) {
+            isRecipient = true;
+          }
+
+          if (isRecipient) {
+            userConversations.add(msg.conversation_id);
+          }
+        }
+
+        if (userConversations.size > 0) {
+          digestData.unreadMessages = {
+            count: userConversations.size,
+            conversationIds: Array.from(userConversations),
+          };
+        }
+      }
+
+      // 2. If user is a retailer, check their deals expiring/expired
+      // First, check if this user owns a retailer profile
+      const { data: retailerProfile } = await supabaseAdmin
+        .from('retailer_profiles')
+        .select('id')
+        .eq('owner_user_id', user.id)
+        .single();
+
+      if (retailerProfile) {
+        // Deals expiring in next 24 hours
+        const { data: expiringDeals } = await supabaseAdmin
+          .from('deals')
+          .select('id, title, expires_at')
+          .eq('retailer_profile_id', retailerProfile.id)
+          .eq('status', 'active')
+          .gte('expires_at', now.toISOString())
+          .lte('expires_at', in24Hours.toISOString());
+
+        if (expiringDeals && expiringDeals.length > 0) {
+          digestData.dealsExpiring = expiringDeals.map((deal: any) => ({
+            title: deal.title,
+            expiresAt: deal.expires_at,
+          }));
+        }
+
+        // Deals that expired in last 24 hours
+        const { data: justExpiredDeals } = await supabaseAdmin
+          .from('deals')
+          .select('id, title, price')
+          .eq('retailer_profile_id', retailerProfile.id)
+          .eq('status', 'expired')
+          .gte('expires_at', last24Hours.toISOString())
+          .lt('expires_at', now.toISOString());
+
+        if (justExpiredDeals && justExpiredDeals.length > 0) {
+          digestData.dealsExpired = justExpiredDeals.map((deal: any) => ({
+            title: deal.title,
+            price: `$${deal.price.toFixed(2)}`,
+          }));
+        }
+      }
+
+      // 3. Check user's marketplace listings expiring/expired
+      const { data: expiringListings } = await supabaseAdmin
+        .from('marketplace_listings')
+        .select('id, title, price, expires_at')
+        .eq('seller_id', user.id)
+        .eq('status', 'active')
+        .gte('expires_at', now.toISOString())
+        .lte('expires_at', in24Hours.toISOString());
+
+      if (expiringListings && expiringListings.length > 0) {
+        digestData.listingsExpiring = expiringListings.map((listing: any) => ({
+          title: listing.title,
+          price: `$${listing.price.toFixed(2)}`,
+          expiresAt: listing.expires_at,
+        }));
+      }
+
+      const { data: justExpiredListings } = await supabaseAdmin
+        .from('marketplace_listings')
+        .select('id, title, price')
+        .eq('seller_id', user.id)
+        .eq('status', 'expired')
+        .gte('expires_at', last24Hours.toISOString())
+        .lt('expires_at', now.toISOString());
+
+      if (justExpiredListings && justExpiredListings.length > 0) {
+        digestData.listingsExpired = justExpiredListings.map((listing: any) => ({
+          title: listing.title,
+          price: `$${listing.price.toFixed(2)}`,
+        }));
+      }
+
+      // 4. Add global new deals (if any exist)
+      if (globalNewDeals.length > 0) {
+        digestData.newDeals = globalNewDeals;
+      }
+
+      // Only add user to digest list if they have ANY updates
+      const hasUpdates =
+        digestData.unreadMessages ||
+        digestData.dealsExpiring ||
+        digestData.dealsExpired ||
+        digestData.listingsExpiring ||
+        digestData.listingsExpired ||
+        digestData.newDeals;
+
+      if (hasUpdates) {
+        userDigests.push(digestData);
+      }
+    }
+
+    console.log(`[DAILY DIGEST] Step 3: ${userDigests.length} users have updates to receive`);
+
+    // Send digest emails
+    const baseUrl = 'https://www.locksmithmarketplace.com';
+    const messagesUrl = `${baseUrl}?section=messages`;
+    const dealsUrl = `${baseUrl}?section=deals`;
+    const dashboardUrl = `${baseUrl}?section=retailer-dashboard`;
+    const accountUrl = `${baseUrl}?section=account`;
+
+    let emailsSent = 0;
+    let emailsFailed = 0;
+
+    for (const userDigest of userDigests) {
+      try {
+        const emailHtml = dailyDigestTemplate({
+          userName: userDigest.userName,
+          unreadMessages: userDigest.unreadMessages,
+          dealsExpiring: userDigest.dealsExpiring,
+          dealsExpired: userDigest.dealsExpired,
+          newDeals: userDigest.newDeals,
+          listingsExpiring: userDigest.listingsExpiring,
+          listingsExpired: userDigest.listingsExpired,
+          messagesUrl,
+          dealsUrl,
+          dashboardUrl,
+          accountUrl,
+        });
+
+        const result = await sendEmail({
+          to: userDigest.userEmail,
+          subject: `📬 Your Daily Update - Locksmith Marketplace`,
+          html: emailHtml,
+        });
+
+        if (result.success) {
+          console.log(`[DAILY DIGEST] ✅ Sent to ${userDigest.userEmail}`);
+          emailsSent++;
+        } else {
+          console.error(`[DAILY DIGEST] ❌ Failed to send to ${userDigest.userEmail}: ${result.error}`);
+          emailsFailed++;
+        }
+
+        // Respect Resend rate limit (2 requests/second)
+        await new Promise(resolve => setTimeout(resolve, 600));
+
+      } catch (error) {
+        console.error(`[DAILY DIGEST] Error sending to ${userDigest.userEmail}:`, error);
+        emailsFailed++;
+      }
+    }
+
+    const duration = Date.now() - startTime;
+    console.log(`[DAILY DIGEST] ========================================`);
+    console.log(`[DAILY DIGEST] Completed in ${duration}ms`);
+    console.log(`[DAILY DIGEST] Emails sent: ${emailsSent}`);
+    console.log(`[DAILY DIGEST] Emails failed: ${emailsFailed}`);
+    console.log(`[DAILY DIGEST] ========================================`);
+
+    return c.json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      totalUsers: allUsers?.length || 0,
+      usersWithUpdates: userDigests.length,
+      emailsSent,
+      emailsFailed,
+      newDealsCount: globalNewDeals.length,
+      duration: `${duration}ms`,
+    });
+
+  } catch (error) {
+    console.error('[DAILY DIGEST] Fatal error:', error);
+
     return c.json({
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
