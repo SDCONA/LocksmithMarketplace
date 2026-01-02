@@ -1,24 +1,10 @@
 // reCAPTCHA v3 Utility
 // Handles token generation for form submissions
 
-// USING GOOGLE TEST KEYS FOR DEVELOPMENT
-// These test keys work on ALL domains including Figma Make
-// ⚠️ IMPORTANT: Replace with real keys before production deployment!
-// Get real keys from: https://www.google.com/recaptcha/admin
-const HARDCODED_SITE_KEY = '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI'; // ← Google's official test site key (always passes)
-
-// This will be loaded from the environment OR use the hardcoded key
-export const RECAPTCHA_SITE_KEY = import.meta.env?.VITE_RECAPTCHA_SITE_KEY || HARDCODED_SITE_KEY;
-
-// Debug logging
-if (RECAPTCHA_SITE_KEY) {
-  console.log('[reCAPTCHA] Site key configured:', RECAPTCHA_SITE_KEY.substring(0, 10) + '...');
-  if (RECAPTCHA_SITE_KEY === '6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI') {
-    console.warn('[reCAPTCHA] ⚠️ USING TEST KEYS - Replace with real keys for production!');
-  }
-} else {
-  console.log('[reCAPTCHA] Running in development mode - reCAPTCHA disabled. To enable, set VITE_RECAPTCHA_SITE_KEY in .env file.');
-}
+// Get reCAPTCHA site key from environment
+// You must set VITE_RECAPTCHA_SITE_KEY in your environment
+// Get your own keys from: https://www.google.com/recaptcha/admin
+export const RECAPTCHA_SITE_KEY = import.meta.env?.VITE_RECAPTCHA_SITE_KEY || '';
 
 let isRecaptchaLoaded = false;
 
@@ -70,22 +56,18 @@ export function loadRecaptchaScript(): Promise<void> {
  * @returns Promise with the reCAPTCHA token
  */
 export async function executeRecaptcha(action: string): Promise<string> {
-  console.log(`[reCAPTCHA] Executing for action: ${action}`);
-  
   // Ensure reCAPTCHA is loaded first
   await loadRecaptchaScript();
 
   return new Promise((resolve, reject) => {
     // Check if site key is configured
     if (!RECAPTCHA_SITE_KEY) {
-      console.log('[reCAPTCHA] No site key configured - skipping verification');
       resolve(''); // Return empty string if not configured
       return;
     }
 
     // Check if reCAPTCHA is loaded
     if (!window.grecaptcha) {
-      console.warn('[reCAPTCHA] Script not loaded - skipping verification');
       resolve(''); // Return empty string if not loaded
       return;
     }
@@ -95,7 +77,6 @@ export async function executeRecaptcha(action: string): Promise<string> {
       window.grecaptcha
         .execute(RECAPTCHA_SITE_KEY, { action })
         .then((token: string) => {
-          console.log('[reCAPTCHA] Token received successfully');
           resolve(token);
         })
         .catch((error: any) => {

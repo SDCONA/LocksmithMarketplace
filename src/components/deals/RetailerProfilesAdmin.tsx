@@ -52,7 +52,7 @@ export function RetailerProfilesAdmin() {
     website_url: "",
     contact_email: "",
     contact_phone: "",
-    owner_user_id: "",
+    owner_user_email: "", // Changed from owner_user_id to owner_user_email
     daily_deal_limit: 10,
     has_csv_permission: false,
     is_always_on_top: false,
@@ -94,9 +94,29 @@ export function RetailerProfilesAdmin() {
 
   const handleCreate = async () => {
     try {
+      // Find user ID from email if provided
+      let owner_user_id = null;
+      if (formData.owner_user_email) {
+        const user = users.find(u => u.email.toLowerCase() === formData.owner_user_email.toLowerCase());
+        if (!user) {
+          toast.error("User with this email not found. Please ensure the user is registered.");
+          return;
+        }
+        owner_user_id = user.id;
+      }
+      
       const dataToSend = {
-        ...formData,
-        owner_user_id: formData.owner_user_id || null,
+        company_name: formData.company_name,
+        description: formData.description,
+        logo_url: formData.logo_url,
+        website_url: formData.website_url,
+        contact_email: formData.contact_email,
+        contact_phone: formData.contact_phone,
+        owner_user_id: owner_user_id,
+        daily_deal_limit: formData.daily_deal_limit,
+        has_csv_permission: formData.has_csv_permission,
+        is_always_on_top: formData.is_always_on_top,
+        is_active: formData.is_active,
       };
       await DealsService.createRetailerProfile(dataToSend);
       toast.success("Retailer profile created successfully");
@@ -113,9 +133,29 @@ export function RetailerProfilesAdmin() {
     if (!selectedProfile) return;
     
     try {
+      // Find user ID from email if provided
+      let owner_user_id = null;
+      if (formData.owner_user_email) {
+        const user = users.find(u => u.email.toLowerCase() === formData.owner_user_email.toLowerCase());
+        if (!user) {
+          toast.error("User with this email not found. Please ensure the user is registered.");
+          return;
+        }
+        owner_user_id = user.id;
+      }
+      
       const dataToSend = {
-        ...formData,
-        owner_user_id: formData.owner_user_id || null,
+        company_name: formData.company_name,
+        description: formData.description,
+        logo_url: formData.logo_url,
+        website_url: formData.website_url,
+        contact_email: formData.contact_email,
+        contact_phone: formData.contact_phone,
+        owner_user_id: owner_user_id,
+        daily_deal_limit: formData.daily_deal_limit,
+        has_csv_permission: formData.has_csv_permission,
+        is_always_on_top: formData.is_always_on_top,
+        is_active: formData.is_active,
       };
       await DealsService.updateRetailerProfile(selectedProfile.id, dataToSend);
       toast.success("Retailer profile updated successfully");
@@ -195,7 +235,7 @@ export function RetailerProfilesAdmin() {
       website_url: profile.website_url || "",
       contact_email: profile.contact_email || "",
       contact_phone: profile.contact_phone || "",
-      owner_user_id: profile.owner_user_id || "",
+      owner_user_email: profile.owner_user_id ? users.find(u => u.id === profile.owner_user_id)?.email || "" : "", // Set owner_user_email
       daily_deal_limit: profile.daily_deal_limit,
       has_csv_permission: profile.has_csv_permission,
       is_always_on_top: profile.is_always_on_top,
@@ -223,7 +263,7 @@ export function RetailerProfilesAdmin() {
       website_url: "",
       contact_email: "",
       contact_phone: "",
-      owner_user_id: "",
+      owner_user_email: "", // Reset owner_user_email
       daily_deal_limit: 10,
       has_csv_permission: false,
       is_always_on_top: false,
@@ -481,22 +521,16 @@ export function RetailerProfilesAdmin() {
 
             {/* Owner User */}
             <div>
-              <Label htmlFor="owner_user_id">Owner User (Optional)</Label>
-              <select
-                id="owner_user_id"
-                value={formData.owner_user_id}
-                onChange={(e) => setFormData({ ...formData, owner_user_id: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">No owner assigned</option>
-                {users.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.email} {user.firstName && `(${user.firstName} ${user.lastName})`}
-                  </option>
-                ))}
-              </select>
+              <Label htmlFor="owner_user_email">Owner User Email (Optional)</Label>
+              <Input
+                id="owner_user_email"
+                type="email"
+                value={formData.owner_user_email}
+                onChange={(e) => setFormData({ ...formData, owner_user_email: e.target.value })}
+                placeholder="user@example.com"
+              />
               <p className="text-xs text-gray-500 mt-1">
-                Assign this retailer profile to a user account
+                Assign this retailer profile to a user account by entering their email. User must be registered.
               </p>
             </div>
 

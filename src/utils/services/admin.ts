@@ -685,4 +685,22 @@ export class AdminService {
       return { success: false, error: 'Network error' };
     }
   }
+
+  // Test policy email
+  static async testPolicyEmail(accessToken: string): Promise<{ success: boolean; message?: string; error?: string }> {
+    try {
+      const response = await fetch(`${API_BASE}/admin/test-policy-email`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+        },
+      });
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('Error testing policy email:', error);
+      return { success: false, error: 'Network error' };
+    }
+  }
 }

@@ -29,8 +29,8 @@ interface ValidationErrors {
 export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
   const [activeTab, setActiveTab] = useState("login");
   const [showPasswordReset, setShowPasswordReset] = useState(false);
-  const [showVerificationCode, setShowVerificationCode] = useState(false);
-  const [verificationCode, setVerificationCode] = useState("");
+  const [showResendVerification, setShowResendVerification] = useState(false);
+  const [resendVerificationEmail, setResendVerificationEmail] = useState("");
   const [resetCode, setResetCode] = useState("");
   const [resetEmail, setResetEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -78,6 +78,16 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
            strength.hasLowercase && 
            strength.hasNumber && 
            strength.hasSpecialChar;
+  };
+
+  // Validate password and return error message
+  const validatePasswordError = (password: string): string | undefined => {
+    if (!password) return "Password is required";
+    const strength = validatePassword(password);
+    if (!isPasswordStrong(strength)) {
+      return "Password must be at least 8 characters long, contain an uppercase letter, a lowercase letter, a number, and a special character";
+    }
+    return undefined;
   };
 
   // Validation functions
@@ -135,7 +145,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
       email: validateEmail(registerForm.email),
       phone: validatePhone(registerForm.phone),
       city: validateCity(registerForm.city),
-      password: validatePassword(registerForm.password),
+      password: validatePasswordError(registerForm.password),
       confirmPassword: validateConfirmPassword(registerForm.password, registerForm.confirmPassword),
     };
 
@@ -144,7 +154,9 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
     // Mark all fields as touched
     setTouchedFields(new Set(['firstName', 'lastName', 'email', 'phone', 'city', 'password', 'confirmPassword']));
 
-    return !Object.values(errors).some(error => error !== undefined);
+    const hasErrors = Object.values(errors).some(error => error !== undefined);
+
+    return !hasErrors;
   };
 
   // Real-time validation as user types
@@ -255,16 +267,13 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
       });
 
       if (response.success) {
-        console.log('Signup response:', response);
-        
         // Check if email verification is required
         if (response.requiresEmailVerification) {
           toast.success("Account created successfully!", {
-            description: "Please check your email to verify your account. You can also enter the verification code below.",
+            description: "Please check your email and click the verification link to activate your account.",
             duration: 6000,
           });
-          setShowVerificationCode(true);
-          setResetEmail(registerForm.email);
+          onClose();
         } else if (response.requiresManualSignIn) {
           toast.success("Account created successfully!", {
             description: "Please sign in with your credentials.",
@@ -296,7 +305,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
         });
       }
     } catch (error) {
-      console.error("Registration error:", error);
+      console.error("❌ Registration error:", error);
       toast.error("Registration failed", {
         description: "An unexpected error occurred",
       });
@@ -394,46 +403,8 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
     }
   };
 
-  const handleVerifyEmail = async (e: React.FormEvent) => {
+  const handleResendVerification = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-
-    try {
-      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-a7e285ba/verify-email`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${publicAnonKey}`
-        },
-        body: JSON.stringify({ code: verificationCode })
-      });
-
-      const data = await response.json();
-
-      if (data.success && data.user) {
-        toast.success("Email verified!", {
-          description: "Your account is now active. Welcome to Locksmith Marketplace!"
-        });
-        onLogin(data.user);
-        onClose();
-        setShowVerificationCode(false);
-        setVerificationCode("");
-      } else {
-        toast.error("Verification failed", {
-          description: data.error || "Invalid verification code"
-        });
-      }
-    } catch (error) {
-      console.error("Email verification error:", error);
-      toast.error("Verification failed", {
-        description: "An unexpected error occurred"
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleResendVerification = async () => {
     setIsLoading(true);
 
     try {
@@ -443,18 +414,21 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${publicAnonKey}`
         },
-        body: JSON.stringify({ email: resetEmail })
+        body: JSON.stringify({ email: resendVerificationEmail })
       });
 
       const data = await response.json();
 
       if (data.success) {
         toast.success("Verification email sent!", {
-          description: "Please check your inbox for the new verification code."
+          description: "Please check your email and click the verification link to activate your account.",
+          duration: 6000
         });
+        setShowResendVerification(false);
+        setResendVerificationEmail("");
       } else {
         toast.error("Request failed", {
-          description: data.error || "Could not resend verification email"
+          description: data.error || "Could not process request"
         });
       }
     } catch (error) {
@@ -466,64 +440,6 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
       setIsLoading(false);
     }
   };
-
-  // If showing verification code entry
-  if (showVerificationCode) {
-    return (
-      <Dialog open={isOpen} onOpenChange={() => {
-        setShowVerificationCode(false);
-        onClose();
-      }}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Verify Your Email</DialogTitle>
-            <DialogDescription>
-              We've sent a 6-digit code to {resetEmail}. Enter it below to activate your account.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <form onSubmit={handleVerifyEmail} className="space-y-4">
-            <div className="relative">
-              <Input
-                type="text"
-                placeholder="Enter 6-digit code"
-                value={verificationCode}
-                onChange={(e) => setVerificationCode(e.target.value)}
-                maxLength={6}
-                className="text-center text-2xl tracking-widest font-mono"
-                required
-              />
-            </div>
-            
-            <Button type="submit" className="w-full" disabled={isLoading || verificationCode.length !== 6}>
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Verifying...
-                </>
-              ) : (
-                <>
-                  <CheckCircle2 className="mr-2 h-4 w-4" />
-                  Verify Email
-                </>
-              )}
-            </Button>
-            
-            <div className="text-center">
-              <button
-                type="button"
-                onClick={handleResendVerification}
-                disabled={isLoading}
-                className="text-sm text-blue-600 hover:text-blue-800 underline"
-              >
-                Didn't receive the code? Resend
-              </button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-    );
-  }
 
   // If showing password reset form
   if (showPasswordReset) {
@@ -692,6 +608,16 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                 >
                   Forgot Password?
                 </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResendVerificationEmail(loginForm.email);
+                    setActiveTab("resend-verification");
+                  }}
+                  className="text-sm text-blue-600 hover:text-blue-800 underline"
+                >
+                  Resend Verification
+                </button>
               </div>
               
               <Button type="submit" className="w-full" disabled={isLoading}>
@@ -828,6 +754,14 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                   onBlur={() => handleBlur("password")}
                   required
                 />
+                
+                {/* Validation Error for Password */}
+                {validationErrors.password && touchedFields.has("password") && (
+                  <p className="text-red-500 text-sm mt-1">
+                    <AlertCircle className="inline-block mr-1 h-4 w-4" />
+                    {validationErrors.password}
+                  </p>
+                )}
                 
                 {/* Password Strength Indicator */}
                 {registerForm.password && (
@@ -985,6 +919,49 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
                   </>
                 ) : (
                   'Send Reset Link'
+                )}
+              </Button>
+              
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("login")}
+                  className="text-sm text-gray-600 hover:text-gray-800"
+                >
+                  Back to login
+                </button>
+              </div>
+            </form>
+          </TabsContent>
+          
+          <TabsContent value="resend-verification" className="space-y-4 mt-4">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+              <p className="text-sm text-green-800">
+                📧 Didn't receive the verification email? Enter your email address and we'll send you a new verification link.
+              </p>
+            </div>
+            
+            <form onSubmit={handleResendVerification} className="space-y-4">
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                <Input
+                  type="email"
+                  placeholder="Enter your email"
+                  className="pl-10"
+                  value={resendVerificationEmail}
+                  onChange={(e) => setResendVerificationEmail(e.target.value)}
+                  required
+                />
+              </div>
+              
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  'Resend Verification Email'
                 )}
               </Button>
               

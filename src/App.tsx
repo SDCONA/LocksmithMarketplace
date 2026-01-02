@@ -46,7 +46,6 @@ import { DynamicRetailersPage } from "./components/DynamicRetailersPage";
 import { DealsPage } from "./components/DealsPage";
 import { RetailerDashboardPage } from "./components/RetailerDashboardPage";
 import { MyRetailerDealsPage } from "./components/MyRetailerDealsPage";
-import { PolicyUpdateModal } from "./components/PolicyUpdateModal";
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
 import { Badge } from "./components/ui/badge";
@@ -130,9 +129,68 @@ export default function App() {
 
   // Load reCAPTCHA script on mount
   useEffect(() => {
-    loadRecaptchaScript().catch(error => {
-      console.error('Failed to load reCAPTCHA:', error);
-    });
+    loadRecaptchaScript();
+  }, []);
+
+  // Check for email verification token in URL
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const verifyToken = urlParams.get('verify_token');
+    
+    if (verifyToken) {
+      // Auto-verify email
+      const verifyEmail = async () => {
+        try {
+          const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-a7e285ba/auth/verify-email`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${publicAnonKey}`
+            },
+            body: JSON.stringify({ token: verifyToken })
+          });
+
+          const data = await response.json();
+
+          if (data.success && data.user) {
+            // Set session with Supabase client if session data is returned
+            if (data.session) {
+              const supabase = createClient(projectId, publicAnonKey);
+              await supabase.auth.setSession({
+                access_token: data.session.access_token,
+                refresh_token: data.session.refresh_token
+              });
+            }
+            
+            toast.success("Email verified!", {
+              description: "Your account is now active. Welcome to Locksmith Marketplace!",
+              duration: 5000
+            });
+            
+            // Auto-login the user
+            setUser(data.user);
+            
+            // Clean URL by removing the token
+            window.history.replaceState({}, document.title, window.location.pathname);
+          } else {
+            toast.error("Verification failed", {
+              description: data.error || "The verification link may have expired. Please try signing up again."
+            });
+            // Clean URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        } catch (error) {
+          console.error("Email verification error:", error);
+          toast.error("Verification failed", {
+            description: "An unexpected error occurred. Please try again."
+          });
+          // Clean URL
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      };
+      
+      verifyEmail();
+    }
   }, []);
 
   // Edge function warm-up removed due to 401 errors
@@ -147,7 +205,6 @@ export default function App() {
         const currentUser = await AuthService.getCurrentUser();
         if (currentUser) {
           setUser(currentUser);
-          console.log("Session restored for:", currentUser.firstName, currentUser.lastName, "isAdmin:", currentUser.isAdmin);
           
           // Load saved items using fresh token
           const accessToken = await AuthService.getFreshToken();
@@ -160,10 +217,6 @@ export default function App() {
                   ...item.item_data,
                   savedAt: new Date(item.created_at).getTime()
                 }));
-                setSavedMarketplaceListings(listingsData);
-                console.log(`Loaded ${listingsData.length} saved marketplace listings`);
-              } else {
-                console.log('No saved listings or error loading:', savedListingsResult.error);
               }
             } catch (error) {
               console.error('Error loading saved listings:', error);
@@ -178,16 +231,15 @@ export default function App() {
                   savedAt: new Date(item.created_at).getTime()
                 }));
                 setSavedItems(productsData);
-                console.log(`Loaded ${productsData.length} saved products`);
               } else {
-                console.log('No saved products or error loading:', savedProductsResult.error);
+                // No saved products
               }
             } catch (error) {
               console.error('Error loading saved products:', error);
             }
           }
         } else {
-          console.log("No active session found");
+          // No active session
         }
       } catch (error) {
         console.error("Error checking authentication:", error);
@@ -366,11 +418,10 @@ export default function App() {
       );
       
       if (itemsToFix.length === 0) {
-        console.log('All saved items have correct URLs');
         return;
       }
       
-      console.log(`Fixing ${itemsToFix.length} saved items with incorrect URLs...`);
+      // Fix saved item URLs
       
       const accessToken = await AuthService.getFreshToken();
       if (!accessToken) return;
@@ -404,7 +455,6 @@ export default function App() {
               return item;
             } catch (error) {
               // Silently skip items that can't be fetched (likely deleted deals)
-              console.log(`Skipping URL fix for item ${item.id} - deal may be deleted`);
               return item;
             }
           })
@@ -426,7 +476,7 @@ export default function App() {
           toast.success(`Fixed ${successfullyFixed} product links`);
         }
       } catch (error) {
-        console.log('Some saved item URLs could not be fixed - deals may be deleted');
+        // Some URLs could not be fixed
       }
     };
     
@@ -466,7 +516,6 @@ export default function App() {
     
     const handleTokenVerification = async () => {
       if (verifyToken) {
-        console.log('[Email Verification] Token found in URL, attempting verification...');
         try {
           const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-a7e285ba/verify-email`, {
             method: 'POST',
@@ -498,7 +547,6 @@ export default function App() {
           });
         }
       } else if (resetToken) {
-        console.log('[Password Reset] Token found in URL');
         // For reset token, we'll show the reset form in AuthModal
         // Store token temporarily and show auth modal
         sessionStorage.setItem('resetToken', resetToken);
@@ -572,7 +620,6 @@ export default function App() {
             table: 'messages'
           },
           (payload) => {
-            console.log('Message change detected:', payload);
             // Refetch count when messages are inserted or updated
             fetchUnreadMessagesCount();
           }
@@ -625,9 +672,6 @@ export default function App() {
 
   // Fetch marketplace listings from backend with pagination
   const fetchMarketplaceListings = async (page = 1, append = false) => {
-    const startTime = performance.now();
-    console.log(`🔍 Starting listings fetch (page ${page}, append: ${append})...`);
-    
     if (page === 1) {
       setIsLoadingListings(true);
     } else {
@@ -643,21 +687,7 @@ export default function App() {
       if (zipCode && zipCode.length === 5) filters.zipCode = zipCode;
       if (radius) filters.radius = radius;
       
-      console.log('🔍 Fetching listings with filters:', filters);
-      
-      const beforeFetch = performance.now();
       const result = await ListingsService.getListings(filters);
-      const afterFetch = performance.now();
-      console.log(`📡 API call took: ${(afterFetch - beforeFetch).toFixed(0)}ms`);
-      console.log(`📦 Received ${result.listings?.length || 0} listings`);
-      console.log('📋 Full API response:', result);
-      
-      // Log radius filter debug info if available
-      if (result.debug) {
-        console.log('🔍 RADIUS FILTER DEBUG:', result.debug);
-      } else {
-        console.log('⚠️ No debug info in response (radius filter may not have been applied)');
-      }
       
       if (result.success && result.listings) {
         // Transform backend listings to match frontend format
@@ -694,9 +724,6 @@ export default function App() {
           transponderType: listing.transponder_type,
         }));
         
-        console.log('✨ Transformed listings:', transformedListings);
-        console.log(`📝 Setting ${transformedListings.length} listings to state (append: ${append})`);
-        
         // Append or replace items based on pagination
         if (append) {
           setMarketplaceItems(prev => [...prev, ...transformedListings]);
@@ -707,14 +734,6 @@ export default function App() {
         // Update pagination state
         setCurrentPage(page);
         setHasMoreListings(result.pagination?.hasMore || false);
-        
-        // Log final state after setting
-        setTimeout(() => {
-          console.log('🎯 Current marketplaceItems count after setState:', marketplaceItems.length);
-        }, 0);
-        
-        const endTime = performance.now();
-        console.log(`⚡ Total (fetch + transform): ${(endTime - startTime).toFixed(0)}ms, hasMore: ${result.pagination?.hasMore}`);
       } else {
         setListingsError(result.error || 'Failed to load listings');
         if (page === 1) {
@@ -722,8 +741,6 @@ export default function App() {
         }
       }
     } catch (error) {
-      // Only log as info, not error (to avoid red console messages)
-      console.log('Failed to fetch listings (server may not be running):', error instanceof Error ? error.message : 'Network error');
       setListingsError('Network error');
       if (page === 1) {
         toast.error('Failed to connect to server');
@@ -731,8 +748,6 @@ export default function App() {
     } finally {
       setIsLoadingListings(false);
       setIsLoadingMore(false);
-      const totalTime = performance.now() - startTime;
-      console.log(`✅ Complete with UI update: ${totalTime.toFixed(0)}ms`);
     }
   };
 
@@ -750,7 +765,6 @@ export default function App() {
       
       // Load more when scrolled 80% down and not already loading
       if (scrolledPercentage > 0.8 && hasMoreListings && !isLoadingMore && !isLoadingListings) {
-        console.log('📜 Infinite scroll triggered, loading page', currentPage + 1);
         fetchMarketplaceListings(currentPage + 1, true);
       }
     };
@@ -797,8 +811,6 @@ export default function App() {
 
       // If there's a query, use multi-source search (database + eBay + future sources)
       if (query) {
-        console.log(`🔍 Multi-source search for: ${query}`);
-        
         // Use the new DealsService search that combines database + eBay
         const result = await DealsService.searchDeals(query, [], true);
         
@@ -855,7 +867,7 @@ export default function App() {
           setIsSearching(false);
           return;
         } else {
-          console.log('No products found from multi-source search');
+          // No products found
         }
       }
       
@@ -974,9 +986,7 @@ export default function App() {
         transponderType: listing.transponderType || null,
       };
       
-      console.log('Creating listing with data:', listingData);
       const result = await ListingsService.createListing(accessToken, listingData);
-      console.log('Create listing result:', result);
       
       if (result.success && result.listing) {
         toast.success('Listing created successfully!', {
@@ -1002,13 +1012,10 @@ export default function App() {
   };
 
   const handleEditListing = (listing: any) => {
-    console.log('🔧 handleEditListing called with:', listing);
     if (!user) {
-      console.log('❌ User not logged in');
       handleAuthRequired();
       return;
     }
-    console.log('✅ Setting editingListing and showEditListing to true');
     setEditingListing(listing);
     setShowEditListing(true);
   };
@@ -1110,7 +1117,6 @@ export default function App() {
 
   const handleSubmitReport = (reportData: any) => {
     // In a real app, this would send the report to the backend
-    console.log("Report submitted:", reportData);
     
     // Show success toast
     toast.success("Report submitted", {
@@ -1140,7 +1146,6 @@ export default function App() {
     };
     
     setUser(updatedUser);
-    console.log('Marketplace profile updated:', profileData);
   };
 
   const handleMessage = async (sellerId: string) => {
@@ -1204,13 +1209,11 @@ export default function App() {
         handleSaveMarketplaceListing(listing);
       }
     } else {
-      console.log("Listing not found for favorite:", itemId);
+      // Listing not found
     }
   };
 
   const handleViewListing = async (listing: any) => {
-    console.log(`📊 Viewing listing: ${listing.id}, current views: ${listing.views || 0}`);
-    
     // First set the listing to show the page immediately
     setSelectedListing(listing);
     setCurrentSection('listing');
@@ -1231,8 +1234,6 @@ export default function App() {
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.listing) {
-          console.log(`✅ View count updated: ${listing.views || 0} -> ${data.listing.views}`);
-          
           // Transform backend listing to match frontend format
           const transformedListing = {
             ...listing, // Keep all existing frontend fields
@@ -1306,7 +1307,6 @@ export default function App() {
     // Check if item is already saved
     const isAlreadySaved = savedItems.some(savedItem => savedItem.id === item.id);
     if (isAlreadySaved) {
-      console.log("Item already saved:", item.id);
       toast.info('Item already in your saved items');
       return;
     }
@@ -1328,7 +1328,6 @@ export default function App() {
         };
         
         setSavedItems(prev => [itemWithSaveData, ...prev]);
-        console.log("Item saved:", item.id);
         toast.success('Item saved!', {
           description: 'Added to your saved items',
           duration: 2000,
@@ -1357,7 +1356,6 @@ export default function App() {
       
       if (result.success) {
         setSavedItems(prev => prev.filter(item => item.id !== itemId));
-        console.log("Item unsaved:", itemId);
         toast.success('Item removed from saved');
       } else {
         toast.error(result.error || 'Failed to remove saved item');
@@ -1385,7 +1383,6 @@ export default function App() {
       
       // Clear local state
       setSavedItems([]);
-      console.log("All saved items cleared");
       toast.success('All saved items cleared');
     } catch (error) {
       console.error('Error clearing saved items:', error);
@@ -1671,7 +1668,6 @@ export default function App() {
                   variant="ghost"
                   size="sm"
                   onClick={() => {
-                    console.log('Mobile Navigation - Marketplace clicked');
                     setCurrentSection('marketplace');
                   }}
                   className={`flex flex-col items-center justify-center h-12 w-16 rounded-lg transition-all duration-300 ${
@@ -1687,9 +1683,7 @@ export default function App() {
                   variant="ghost"
                   size="sm"
                   onClick={() => {
-                    console.log('Mobile Navigation - Messages clicked');
                     if (!user) {
-                      console.log('User not authenticated, showing auth modal');
                       handleAuthRequired();
                       return;
                     }
@@ -1713,7 +1707,6 @@ export default function App() {
                   variant="ghost"
                   size="sm"
                   onClick={() => {
-                    console.log('Mobile Navigation - Deals clicked');
                     setCurrentSection('deals');
                   }}
                   className={`flex flex-col items-center justify-center h-12 w-16 rounded-lg transition-all duration-300 ${
@@ -1747,28 +1740,24 @@ export default function App() {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-56 mt-2 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200/50">
                     <DropdownMenuItem onClick={() => {
-                      console.log('Mobile User Menu - My Account clicked');
                       setCurrentSection('account');
                     }}>
                       <User className="h-4 w-4 mr-2" />
                       My Account
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => {
-                      console.log('Mobile User Menu - Saved Items clicked');
                       setCurrentSection('account');
                     }}>
                       <Heart className="h-4 w-4 mr-2" />
                       Saved Items
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => {
-                      console.log('Mobile User Menu - Messages clicked');
                       setCurrentSection('messages');
                     }}>
                       <MessageCircle className="h-4 w-4 mr-2" />
                       Messages
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => {
-                      console.log('Mobile User Menu - Settings clicked');
                       setCurrentSection('settings');
                     }}>
                       <Settings className="h-4 w-4 mr-2" />
@@ -1778,7 +1767,6 @@ export default function App() {
                       <>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => {
-                          console.log('Mobile User Menu - Admin Panel clicked');
                           setCurrentSection('admin');
                         }}>
                           <ShieldCheck className="h-4 w-4 mr-2" />
@@ -1788,7 +1776,6 @@ export default function App() {
                     )}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={() => {
-                      console.log('Mobile User Menu - Logout clicked');
                       handleLogout();
                     }}>
                       <LogOut className="h-4 w-4 mr-2" />
@@ -1817,7 +1804,6 @@ export default function App() {
               <div className="flex items-center space-x-3 flex-1">
                 <button 
                   onClick={() => {
-                    console.log('Desktop Logo clicked - navigating home');
                     handleGoHome();
                   }}
                   className="hover:opacity-95 transition-all duration-300 hover:scale-105 text-white font-semibold text-lg leading-tight hover:bg-white/20 hover:shadow-[0_4px_16px_rgba(0,0,0,0.15)] rounded-2xl px-4 py-2.5 flex-shrink-0 backdrop-blur-sm border border-white/10 hover:border-white/30 shadow-md"
@@ -1827,13 +1813,12 @@ export default function App() {
                 </button>
                 
                 {/* Desktop Navigation Buttons */}
-                <div className="flex items-center space-x-2 ml-6 flex-shrink-0">
+                <div className="flex items-center justify-center space-x-8 flex-1">
                   {/* HIDDEN: Retailers button temporarily hidden */}
                   {false && (
                   <Button
                     variant="ghost"
                     onClick={() => {
-                      console.log('Desktop Retailers button clicked');
                       handleGoHome();
                     }}
                     className={`text-white hover:bg-white/20 hover:shadow-lg rounded-xl px-4 py-2 transition-all duration-300 backdrop-blur-sm border border-transparent hover:border-white/20 ${
@@ -1848,7 +1833,6 @@ export default function App() {
                   <Button
                     variant="ghost"
                     onClick={() => {
-                      console.log('Desktop Deals button clicked');
                       setCurrentSection('deals');
                       setPreviousConversationId(null);
                     }}
@@ -1863,7 +1847,6 @@ export default function App() {
                   <Button
                     variant="ghost"
                     onClick={() => {
-                      console.log('Desktop Marketplace button clicked');
                       setCurrentSection('marketplace');
                       setPreviousConversationId(null);
                     }}
@@ -1878,9 +1861,7 @@ export default function App() {
                   <Button
                     variant="ghost"
                     onClick={() => {
-                      console.log('Desktop Messages button clicked');
                       if (!user) {
-                        console.log('User not authenticated, showing auth modal');
                         handleAuthRequired();
                         return;
                       }
@@ -1900,71 +1881,6 @@ export default function App() {
                     )}
                   </Button>
                 </div>
-                
-                {/* Search Bar - Tablet: smaller, Desktop: full size */}
-                {currentSection !== 'deals' && (
-                  <div className="flex-1 ml-6 lg:ml-6 md:ml-4">
-                    <div className="flex items-center lg:space-x-3 md:flex-col lg:flex-row md:space-y-2 lg:space-y-0">
-                      {/* Search Bar */}
-                      <div className="flex-1 relative w-full">
-                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                        <Input
-                          placeholder={currentSection === 'marketplace' ? "Search marketplace..." : "Search automotive keys (includes eBay)..."}
-                          value={currentSection === 'marketplace' ? marketplaceSearch : searchQuery}
-                          onChange={(e) => {
-                            if (currentSection === 'marketplace') {
-                              setMarketplaceSearch(e.target.value);
-                            } else {
-                              setSearchQuery(e.target.value);
-                            }
-                          }}
-                          onKeyPress={(e) => e.key === 'Enter' && handleSearch()}
-                          className="pl-10 pr-16 py-2.5 w-full rounded-2xl bg-white/95 dark:bg-gray-800 backdrop-blur-md text-gray-900 dark:text-white border border-white/30 dark:border-gray-600 text-sm sm:text-base font-bold shadow-[0_4px_20px_rgba(0,0,0,0.15)] hover:shadow-[0_6px_24px_rgba(0,0,0,0.2)] transition-all duration-300"
-                        />
-                        <Button 
-                          onClick={() => {
-                            console.log('Search Console - Desktop Search Triggered:', {
-                              query: currentSection === 'marketplace' ? marketplaceSearch : searchQuery,
-                              section: currentSection,
-                              selectedVehicle: selectedVehicle,
-                              timestamp: new Date().toISOString(),
-                              filters: {
-                                retailers: selectedRetailers,
-                                sortBy: sortBy,
-                                inStockOnly: inStockOnly,
-                                selectedCategory: selectedCategory,
-                                selectedCondition: selectedCondition
-                              }
-                            });
-                            handleSearch();
-                          }}
-                          disabled={isSearching}
-                          className="absolute right-1.5 top-1/2 transform -translate-y-1/2 bg-gradient-to-br from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 h-8 px-4 rounded-xl shadow-[0_2px_12px_rgba(0,0,0,0.2)] hover:shadow-[0_4px_16px_rgba(0,0,0,0.3)] transition-all duration-300"
-                          size="sm"
-                        >
-                          {isSearching ? (
-                            <RefreshCw className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <Search className="h-3 w-3" />
-                          )}
-                        </Button>
-                      </div>
-                      
-                      {/* Vehicle Selector Section - Shows inline on desktop, separate row on tablet */}
-                    {(currentSection === 'retailers' || currentSection === 'search' || showSearchResults) && !['messages', 'account', 'listing', 'settings', 'profile', 'help', 'seller-listings', 'promote', 'contact', 'privacy', 'terms', 'saved-items', 'saved-marketplace-listings', 'saved-deals', 'archived-listings', 'admin', 'retailer-dashboard', 'my-retailer-deals'].includes(currentSection) && (
-                      <div className="lg:flex lg:items-center lg:space-x-3 lg:flex-shrink-0 md:flex md:items-center md:justify-center md:w-full lg:w-auto">
-                        {/* "or" text - Desktop only */}
-
-                        
-                        {/* Vehicle Selector */}
-                        <div className="lg:flex-shrink-0">
-                          <VehicleSelector onVehicleSelect={handleVehicleSelect} />
-                        </div>
-                      </div>
-                    )}
-                    </div>
-                  </div>
-                )}
               </div>
               
               {/* User Menu - positioned at the end */}
@@ -1993,7 +1909,6 @@ export default function App() {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-56 mt-2 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200/50">
                     <DropdownMenuItem onClick={() => {
-                      console.log('Desktop User Menu - My Account clicked');
                       setCurrentSection('account');
                       setPreviousConversationId(null);
                     }}>
@@ -2001,7 +1916,6 @@ export default function App() {
                       My Account
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => {
-                      console.log('Desktop User Menu - Saved Items clicked');
                       setCurrentSection('account');
                       setPreviousConversationId(null);
                     }}>
@@ -2009,7 +1923,6 @@ export default function App() {
                       Saved Items
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => {
-                      console.log('Desktop User Menu - Messages clicked');
                       setCurrentSection('messages');
                       setPreviousConversationId(null);
                     }}>
@@ -2017,7 +1930,6 @@ export default function App() {
                       Messages
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => {
-                      console.log('Desktop User Menu - Settings clicked');
                       setCurrentSection('settings');
                       setPreviousConversationId(null);
                     }}>
@@ -2028,7 +1940,6 @@ export default function App() {
                       <>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => {
-                          console.log('Desktop User Menu - Admin Panel clicked');
                           setCurrentSection('admin');
                           setPreviousConversationId(null);
                         }}>
@@ -2039,7 +1950,6 @@ export default function App() {
                     )}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={() => {
-                      console.log('Desktop User Menu - Logout clicked');
                       handleLogout();
                     }}>
                       <LogOut className="h-4 w-4 mr-2" />
@@ -2050,18 +1960,9 @@ export default function App() {
               ) : (
                 <div className="flex items-center space-x-2 ml-4 flex-shrink-0">
                   <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setDarkMode(!darkMode)}
-                    className="text-white hover:bg-white/20 hover:shadow-lg p-2 rounded-xl backdrop-blur-sm border border-white/10 hover:border-white/30 transition-all duration-300"
-                  >
-                    {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-                  </Button>
-                  <Button
                     variant="outline"
                     size="sm"
                     onClick={() => {
-                      console.log('Desktop Login button clicked');
                       setShowAuthModal(true);
                     }}
                     className="bg-white/95 backdrop-blur-md text-blue-700 hover:bg-white border border-white/40 shadow-[0_4px_16px_rgba(0,0,0,0.15)] hover:shadow-[0_6px_20px_rgba(0,0,0,0.2)] rounded-2xl px-5 py-2.5 font-medium transition-all duration-300 hover:scale-105"
@@ -2369,9 +2270,7 @@ export default function App() {
             onUpdateMarketplaceProfile={handleUpdateMarketplaceProfile}
             isLoggedIn={!!user}
             onCreateListing={() => {
-              console.log('Create Listing button clicked from marketplace profile');
               if (!user) {
-                console.log('User not authenticated, showing auth modal');
                 handleAuthRequired();
                 return;
               }
@@ -2443,7 +2342,6 @@ export default function App() {
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            console.log('Saved marketplace listings button clicked');
                             setCurrentSection('saved-marketplace-listings');
                           }}
                           className="text-blue-600 border-blue-200 hover:bg-blue-50"
@@ -2455,7 +2353,6 @@ export default function App() {
                           variant="outline"
                           size="sm"
                           onClick={() => {
-                            console.log('My profile button clicked');
                             setCurrentSection('marketplace-profile');
                           }}
                           className="text-blue-600 border-blue-200 hover:bg-blue-50"
@@ -2520,7 +2417,6 @@ export default function App() {
                       </p>
                       <Button 
                         onClick={() => {
-                          console.log('Marketplace Clear all filters button clicked');
                           setSelectedCategory("all");
                           setSelectedCondition("all");
                           setZipCode("");
@@ -2571,7 +2467,6 @@ export default function App() {
                         variant="outline"
                         size="sm"
                         onClick={() => {
-                          console.log('Saved button clicked from search results');
                           setCurrentSection('saved-items');
                         }}
                         className="text-blue-600 border-blue-200 hover:bg-blue-50"
@@ -2581,7 +2476,6 @@ export default function App() {
                       </Button>
                     )}
                     <Button onClick={() => {
-                      console.log('Back to Marketplace button clicked');
                       handleGoHome();
                     }} variant="outline">
                       ← Back to Marketplace
@@ -2628,7 +2522,6 @@ export default function App() {
                       Try adjusting your search criteria or filters
                     </p>
                     <Button onClick={() => {
-                      console.log('Clear all filters button clicked');
                       clearFilters();
                     }} variant="outline">
                       Clear all filters
@@ -2658,7 +2551,6 @@ export default function App() {
                       variant="outline"
                       size="sm"
                       onClick={() => {
-                        console.log('Saved button clicked from retailers page');
                         setCurrentSection('saved-items');
                       }}
                       className="text-blue-600 border-blue-200 hover:bg-blue-50"
@@ -2967,9 +2859,6 @@ export default function App() {
       
       {/* Toast Notifications */}
       <Toaster position="top-center" richColors />
-      
-      {/* Policy Update Modal */}
-      {user && <PolicyUpdateModal />}
     </div>
   );
 }

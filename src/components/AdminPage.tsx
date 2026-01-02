@@ -195,11 +195,15 @@ export function AdminPage({ onBack }: AdminPageProps) {
       return;
     }
 
+    console.log('[FRONTEND] Saving policies with notifyUsers:', notifyUsers);
+    
     const result = await AdminService.savePolicies(accessToken, {
       terms: termsContent,
       privacy: privacyContent,
       notifyUsers
     });
+
+    console.log('[FRONTEND] Save result:', result);
 
     if (result.success) {
       setPolicyLastUpdated(new Date().toLocaleString());
@@ -1730,13 +1734,47 @@ export function AdminPage({ onBack }: AdminPageProps) {
                         Edit platform policies and notify users about updates
                       </CardDescription>
                     </div>
-                    <Button 
-                      onClick={handleSavePolicies}
-                      disabled={isSavingPolicy}
-                    >
-                      <Save className="h-4 w-4 mr-2" />
-                      {isSavingPolicy ? 'Saving...' : 'Save Changes'}
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button 
+                        onClick={async () => {
+                          const accessToken = await AuthService.getFreshToken();
+                          if (!accessToken) return;
+                          const result = await AdminService.testPolicyEmail(accessToken);
+                          if (result.success) {
+                            toast.success(result.message || 'Test email sent!');
+                          } else {
+                            toast.error(result.error || 'Failed to send test email');
+                          }
+                        }}
+                        variant="outline"
+                      >
+                        Test Email
+                      </Button>
+                      <Button 
+                        onClick={async () => {
+                          const accessToken = await AuthService.getFreshToken();
+                          if (!accessToken) return;
+                          
+                          const result = await AdminService.getUsers(accessToken);
+                          if (result.success && result.users) {
+                            const nonBannedUsers = result.users.filter((u: any) => !u.is_banned);
+                            alert(`Found ${nonBannedUsers.length} active users that would receive the policy update email.\n\nEmails: ${nonBannedUsers.map((u: any) => u.email).join(', ')}`);
+                          } else {
+                            alert('Failed to fetch users');
+                          }
+                        }}
+                        variant="outline"
+                      >
+                        Check Users
+                      </Button>
+                      <Button 
+                        onClick={handleSavePolicies}
+                        disabled={isSavingPolicy}
+                      >
+                        <Save className="h-4 w-4 mr-2" />
+                        {isSavingPolicy ? 'Saving...' : 'Save Changes'}
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -1800,7 +1838,7 @@ export function AdminPage({ onBack }: AdminPageProps) {
                           Notify Users About Policy Changes
                         </Label>
                         <p className="text-xs text-gray-600">
-                          When enabled, all users will see a simple popup modal when they login
+                          When enabled, all users will receive an email notification about the policy update
                         </p>
                       </div>
                       <label className="relative inline-flex items-center cursor-pointer">

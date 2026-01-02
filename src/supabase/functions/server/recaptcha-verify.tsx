@@ -1,9 +1,5 @@
 // reCAPTCHA v3 Server-side Verification Utility
 
-// GOOGLE TEST SECRET KEY FOR DEVELOPMENT
-// ⚠️ IMPORTANT: Replace with real secret key before production deployment!
-const TEST_SECRET_KEY = '6LeIxAcTAAAAAGG-vFI1TnRWxMZNFuojJ4WifJWe'; // Google's official test secret key (always passes)
-
 /**
  * Verify a reCAPTCHA token with Google's API
  * @param token - The reCAPTCHA token from the client
@@ -21,25 +17,24 @@ export async function verifyRecaptcha(
   action?: string;
   error?: string;
 }> {
-  // Use environment variable or fall back to test key
-  const secretKey = Deno.env.get('RECAPTCHA_SECRET_KEY') || TEST_SECRET_KEY;
+  // Get the secret key from environment
+  const secretKey = Deno.env.get('RECAPTCHA_SECRET_KEY');
 
-  // Log if using test keys
-  if (secretKey === TEST_SECRET_KEY) {
-    console.warn('[reCAPTCHA] ⚠️ USING TEST KEYS - Bypassing all verification (development mode)');
-    // In development with test keys, just skip verification entirely
+  if (!secretKey) {
+    console.error('[reCAPTCHA] RECAPTCHA_SECRET_KEY not configured');
     return {
-      success: true,
-      score: 0.9,
-      action: expectedAction
+      success: false,
+      error: 'reCAPTCHA not configured on server'
     };
   }
 
-  // If no token provided, allow it in development (graceful degradation)
-  // This handles cases where the frontend site key isn't configured
+  // Require token
   if (!token) {
-    console.warn('No reCAPTCHA token provided - allowing in development mode');
-    return { success: true }; // Changed from false to true for graceful degradation
+    console.error('[reCAPTCHA] No reCAPTCHA token provided');
+    return { 
+      success: false,
+      error: 'reCAPTCHA token required'
+    };
   }
 
   try {
@@ -57,21 +52,11 @@ export async function verifyRecaptcha(
     // Check if verification was successful
     if (!data.success) {
       const errorCodes = data['error-codes'] || [];
-      console.error('reCAPTCHA verification failed:', errorCodes);
-      
-      // If keys are invalid (test or production), gracefully skip verification in development
-      if (errorCodes.includes('invalid-keys') || errorCodes.includes('invalid-input-secret')) {
-        console.warn('[reCAPTCHA] ⚠️ Invalid keys detected - skipping verification (development mode)');
-        return {
-          success: true,
-          score: 0.9, // Fake high score for development
-          action: expectedAction
-        };
-      }
+      console.error('[reCAPTCHA] Verification failed:', errorCodes);
       
       return {
         success: false,
-        error: 'reCAPTCHA verification failed'
+        error: `reCAPTCHA verification failed: ${errorCodes.join(', ')}`
       };
     }
 
@@ -96,7 +81,6 @@ export async function verifyRecaptcha(
     }
 
     // All checks passed
-    console.log(`reCAPTCHA verified successfully: score ${data.score}, action ${data.action}`);
     return {
       success: true,
       score: data.score,

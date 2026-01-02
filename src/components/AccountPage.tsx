@@ -78,10 +78,6 @@ export function AccountPage({
   onLogout,
   onNotificationRead
 }: AccountPageProps) {
-  console.log('AccountPage - User data:', user);
-  console.log('AccountPage - User phone:', user?.phone);
-  console.log('AccountPage - User address:', user?.address);
-  
   const [activeTab, setActiveTab] = useState("profile");
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -151,8 +147,6 @@ export function AccountPage({
   // Sync profileData when user prop changes
   useEffect(() => {
     if (user) {
-      console.log('Syncing profileData with user:', user);
-      console.log('User address:', user.address);
       setProfileData({
         firstName: user.firstName || "",
         lastName: user.lastName || "",
@@ -306,8 +300,6 @@ export function AccountPage({
 
   const handleReportReview = (reviewId: string, reportType: string, reviewerName: string) => {
     // In real app, submit report to backend
-    console.log("Review reported:", { reviewId, reportType, reviewerName });
-    
     // Show confirmation message based on report type
     const reportTypeNames = {
       "inappropriate-content": "Inappropriate Content",
@@ -535,7 +527,6 @@ export function AccountPage({
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          console.log('Account profile picture button clicked - executing handler');
                           document.getElementById('photo-upload')?.click();
                         }}
                         variant="secondary"

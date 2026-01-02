@@ -31,9 +31,7 @@ export function MobileNavigation({
   };
 
   const handleMessagesClick = () => {
-    console.log('Mobile Navigation - Messages clicked');
     if (!user) {
-      console.log('User not authenticated, showing auth modal');
       onAuthRequired();
       return;
     }
@@ -41,7 +39,6 @@ export function MobileNavigation({
   };
 
   const handleDealsClick = () => {
-    console.log('Mobile Navigation - Deals clicked');
     setCurrentSection('deals');
   };
 
@@ -55,7 +52,6 @@ export function MobileNavigation({
         <Button
           variant="ghost"
           onClick={() => handleButtonClick('retailers', () => {
-            console.log('Mobile Navigation - Retailers clicked');
             setCurrentSection('retailers');
           })}
           className={`flex flex-col items-center justify-center h-full rounded-none px-1 transition-all duration-300 ${
@@ -71,7 +67,6 @@ export function MobileNavigation({
         <Button
           variant="ghost"
           onClick={() => handleButtonClick('marketplace', () => {
-            console.log('Mobile Navigation - Marketplace clicked');
             setCurrentSection('marketplace');
           })}
           className={`flex flex-col items-center justify-center h-full rounded-none px-1 transition-all duration-300 ${

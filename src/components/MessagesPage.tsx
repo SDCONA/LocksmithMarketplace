@@ -165,9 +165,6 @@ export function MessagesPage({ onBack, onViewProfile, onViewListings, onViewList
       const user = await getCurrentUser();
       if (user?.id) {
         setCurrentUserId(user.id);
-        console.log('✅ Current user ID set:', user.id);
-      } else {
-        console.log('❌ No current user found');
       }
     };
     fetchCurrentUser();
@@ -226,7 +223,7 @@ export function MessagesPage({ onBack, onViewProfile, onViewListings, onViewList
         setConversations(uniqueConversations);
       }
     } catch (error) {
-      console.log('Error reloading conversations:', error);
+      console.error('Error reloading conversations:', error);
     }
   }, []);
   
@@ -235,25 +232,21 @@ export function MessagesPage({ onBack, onViewProfile, onViewListings, onViewList
     const loadConversations = async () => {
       const accessToken = await AuthService.getFreshToken();
       if (!accessToken) {
-        console.log('No access token found, skipping conversation load');
         setIsLoadingConversations(false);
         return;
       }
 
       // OPTIMIZATION: Skip if we already have conversations (returning from a chat)
       if (conversations.length > 0) {
-        console.log('Conversations already loaded, skipping fetch');
         setIsLoadingConversations(false);
         return;
       }
 
       try {
         const result = await MessagingService.getConversations(accessToken);
-        console.log('📨 Raw conversations from backend:', result.conversations);
         if (result.success && result.conversations) {
           // Transform backend conversations to match UI format
           const transformedConversations = result.conversations.map((conv: any) => {
-            console.log('🔄 Processing conversation:', conv.id, 'seller_id:', conv.seller_id);
             // Determine the other participant (not the current user)
             const user = result.currentUserId || currentUserId;
             const otherUser = conv.buyer?.id === user ? conv.seller : conv.buyer;
@@ -324,7 +317,6 @@ export function MessagesPage({ onBack, onViewProfile, onViewListings, onViewList
 
     // PERFORMANCE: Prevent duplicate API calls for the same conversation
     if (loadingConversationRef.current === selectedConversation) {
-      console.log(`⚠️ Already loading conversation ${selectedConversation}, skipping duplicate call`);
       return;
     }
 
@@ -334,7 +326,6 @@ export function MessagesPage({ onBack, onViewProfile, onViewListings, onViewList
     const loadMessages = async () => {
       const accessToken = await AuthService.getFreshToken();
       if (!accessToken) {
-        console.log('❌ No access token, cannot load messages');
         setIsLoadingMessages(false);
         loadingConversationRef.current = null;
         return;
@@ -342,14 +333,12 @@ export function MessagesPage({ onBack, onViewProfile, onViewListings, onViewList
 
       setIsLoadingMessages(true);
       setHasReviewedUser(false); // Reset review state when switching conversations
-      console.log(`📨 Loading last 10 messages for conversation: ${selectedConversation}`);
       
       try {
         const result = await MessagingService.getMessages(accessToken, selectedConversation, 10);
         if (!cancelled && result.success && result.messages) {
           setMessages(result.messages);
           setHasMoreMessages(result.hasMore || false);
-          console.log(`✅ Loaded ${result.messages.length} messages, hasMore: ${result.hasMore}`);
           
           // Reload conversations to update unread counts (messages were just marked as read)
           reloadConversations();
@@ -406,7 +395,6 @@ export function MessagesPage({ onBack, onViewProfile, onViewListings, onViewList
     const oldestMessage = messages[0]; // First message in the array
     
     try {
-      console.log(`📨 Loading more messages before: ${oldestMessage.id}`);
       const result = await MessagingService.getMessages(accessToken, selectedConversation, 10, oldestMessage.id);
       
       if (result.success && result.messages) {
@@ -417,7 +405,6 @@ export function MessagesPage({ onBack, onViewProfile, onViewListings, onViewList
         // Prepend older messages
         setMessages(prev => [...result.messages, ...prev]);
         setHasMoreMessages(result.hasMore || false);
-        console.log(`✅ Loaded ${result.messages.length} more messages, hasMore: ${result.hasMore}`);
         
         // Restore scroll position after DOM update
         setTimeout(() => {
@@ -461,17 +448,9 @@ export function MessagesPage({ onBack, onViewProfile, onViewListings, onViewList
       return;
     }
     
-    console.log('📤 Sending message with:', {
-      text: newMessage,
-      imageCount: selectedImages.length,
-      conversationId: selectedConversation
-    });
-    
     try {
       setIsUploading(true); // Show uploading state
       const result = await MessagingService.sendMessage(accessToken, selectedConversation, newMessage, selectedImages.map(img => img.file));
-      
-      console.log('📨 Send result:', result);
       
       if (result.success) {
         setNewMessage("");
@@ -479,7 +458,6 @@ export function MessagesPage({ onBack, onViewProfile, onViewListings, onViewList
         // Just add the new message to the list instead of reloading all
         if (result.message) {
           setMessages(prev => [...prev, result.message]);
-          console.log('📬 Added new message to list');
           
           // Scroll to bottom after sending
           setTimeout(() => {

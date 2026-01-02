@@ -35,7 +35,6 @@ export function VehicleSelector({ onVehicleSelect }: VehicleSelectorProps) {
             const result = await response.json();
             if (result.success && result.vehicleData) {
               setVehicleData(result.vehicleData);
-              console.log('✅ Loaded custom vehicle database from server');
               return;
             }
           }
@@ -46,7 +45,6 @@ export function VehicleSelector({ onVehicleSelect }: VehicleSelectorProps) {
         // If we get here, either request failed or no custom database, use default
         const data = await loadVehicleData();
         setVehicleData(data);
-        console.log('✅ Using default embedded vehicle database');
       } catch (error) {
         // Final fallback to embedded default
         console.error("Error loading vehicle database:", error);
@@ -97,16 +95,6 @@ export function VehicleSelector({ onVehicleSelect }: VehicleSelectorProps) {
   const availableModels = selectedYear && selectedMake && vehicleData
     ? getModelsForMakeAndYear(vehicleData, parseInt(selectedYear), selectedMake)
     : [];
-
-  // Debug logging
-  console.log('🚗 VehicleSelector state:', {
-    selectedYear,
-    selectedMake,
-    selectedModel,
-    availableMakesCount: availableMakes.length,
-    availableModelsCount: availableModels.length,
-    availableModels: availableModels.slice(0, 5) // Show first 5 models
-  });
 
   const handleYearChange = (year: string) => {
     setSelectedYear(year);

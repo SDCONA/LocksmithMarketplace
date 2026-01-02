@@ -299,14 +299,6 @@ export function PromotePage({ user, onBack, userListings, onViewListing, onEditL
                     <Button
                       onClick={() => {
                         // Save promotion settings for current listing
-                        console.log('Saving promotion settings:', {
-                          duration: promotionDuration[0],
-                          dailyAmount: dailyAmount[0],
-                          totalCost: totalCost,
-                          autoRenew: autoRenew,
-                          timestamp: new Date().toISOString()
-                        });
-                        
                         // Show success message
                         alert('Promotion settings saved successfully! You can now promote your selected listings with these settings.');
                       }}

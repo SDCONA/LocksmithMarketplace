@@ -74,7 +74,6 @@ export function MessageModal({ isOpen, onClose, user, recipient, onSendMessage }
       onClose();
       
       // Show success feedback
-      console.log("Message sent successfully");
     } catch (error) {
       console.error("Failed to send message:", error);
     } finally {

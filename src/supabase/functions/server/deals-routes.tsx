@@ -22,11 +22,24 @@ async function getAuthUser(authHeader: string | null) {
   return user;
 }
 
-// Helper to check if user is admin - SIMPLIFIED: ALWAYS RETURN TRUE
-// Admin is always admin, no complicated checks needed
+// Helper to check if user is admin
+// Uses secure admins_a7e285ba table which has RLS enabled with NO policies
+// Only service role key can query this table
 async function isAdmin(userId: string) {
-  // YOU ARE ALWAYS ADMIN - removed all the complicated database checks
-  return true;
+  const supabase = createClient(supabaseUrl, supabaseServiceKey);
+  const { data, error } = await supabase
+    .from('admins_a7e285ba')
+    .select('user_id')
+    .eq('user_id', userId)
+    .maybeSingle();
+  
+  if (error) {
+    console.error('Error checking admin status:', error);
+    return false;
+  }
+  
+  // If record exists, user is admin
+  return data !== null;
 }
 
 // Helper to archive expired deals

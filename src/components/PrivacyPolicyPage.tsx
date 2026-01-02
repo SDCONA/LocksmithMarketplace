@@ -127,7 +127,7 @@ export function PrivacyPolicyPage({ onBack }: PrivacyPolicyPageProps) {
         <section>
           <h2 className="text-2xl font-semibold text-gray-900 mb-4">Changes to This Policy</h2>
           <p className="text-gray-700">
-            We may update this Privacy Policy from time to time. We will notify you of significant changes via email or platform notification. 
+            We may update this Privacy Policy from time to time. We will notify you of significant changes via email. 
             Your continued use of our services after such changes constitutes acceptance of the updated policy.
           </p>
         </section>

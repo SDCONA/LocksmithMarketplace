@@ -563,9 +563,8 @@ export function listingExpiredTemplate(data: {
 export function emailVerificationTemplate(data: {
   userName: string;
   verificationUrl: string;
-  verificationCode: string;
 }): string {
-  const { userName, verificationUrl, verificationCode } = data;
+  const { userName, verificationUrl } = data;
 
   return `
 <!DOCTYPE html>
@@ -589,11 +588,6 @@ export function emailVerificationTemplate(data: {
     
     <div style="text-align: center; margin: 30px 0;">
       <a href="${verificationUrl}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 16px 40px; text-decoration: none; border-radius: 8px; font-weight: 700; font-size: 18px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">Verify Email Address</a>
-    </div>
-    
-    <div style="background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin: 25px 0; text-align: center;">
-      <p style="margin: 0 0 10px 0; font-size: 14px; color: #6b7280;">Or enter this verification code:</p>
-      <p style="margin: 0; font-size: 32px; font-weight: 700; color: #667eea; letter-spacing: 8px; font-family: 'Courier New', monospace;">${verificationCode}</p>
     </div>
     
     <p style="font-size: 14px; color: #6b7280;">If you didn't create an account with Locksmith Marketplace, you can safely ignore this email.</p>
@@ -660,6 +654,88 @@ export function passwordResetTemplate(data: {
   
   <div style="text-align: center; padding: 20px; color: #9ca3af; font-size: 12px;">
     <p>© 2025 Locksmith Marketplace. All rights reserved.</p>
+  </div>
+</body>
+</html>
+  `;
+}
+
+/**
+ * Template: Privacy Policy Update Notification
+ */
+export function policyUpdateTemplate(data: {
+  userName: string;
+  policyUrl: string;
+}) {
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy Updated</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f5f5f5;">
+  <div style="max-width: 600px; margin: 0 auto; background-color: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+    <!-- Header -->
+    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 20px; text-align: center;">
+      <div style="background-color: white; width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z" stroke="#667eea" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M14 2V8H20" stroke="#667eea" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M16 13H8" stroke="#667eea" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M16 17H8" stroke="#667eea" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M10 9H9H8" stroke="#667eea" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 600;">Privacy Policy Updated</h1>
+    </div>
+
+    <!-- Content -->
+    <div style="padding: 40px 30px;">
+      <p style="font-size: 16px; line-height: 1.6; color: #333; margin: 0 0 20px 0;">
+        Hi ${data.userName},
+      </p>
+      
+      <p style="font-size: 16px; line-height: 1.6; color: #333; margin: 0 0 20px 0;">
+        We wanted to let you know that we've updated our <strong>Privacy Policy</strong>.
+      </p>
+      
+      <div style="background-color: #f8f9fa; border-left: 4px solid #667eea; padding: 20px; margin: 30px 0; border-radius: 4px;">
+        <p style="font-size: 14px; line-height: 1.6; color: #555; margin: 0;">
+          These updates help us better protect your privacy and explain how we handle your data. 
+          We encourage you to review the changes to understand how they may affect you.
+        </p>
+      </div>
+
+      <p style="font-size: 16px; line-height: 1.6; color: #333; margin: 0 0 30px 0;">
+        Your continued use of Locksmith Marketplace constitutes acceptance of the updated Privacy Policy.
+      </p>
+
+      <!-- CTA Button -->
+      <div style="text-align: center; margin: 40px 0;">
+        <a href="${data.policyUrl}" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; padding: 16px 40px; border-radius: 8px; font-weight: 600; font-size: 16px; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);">
+          Review Privacy Policy
+        </a>
+      </div>
+
+      <p style="font-size: 14px; line-height: 1.6; color: #666; margin: 30px 0 0 0; text-align: center;">
+        If you have any questions, please don't hesitate to contact our support team.
+      </p>
+    </div>
+
+    <!-- Footer -->
+    <div style="background-color: #f8f9fa; padding: 30px; text-align: center; border-top: 1px solid #e9ecef;">
+      <p style="font-size: 14px; color: #666; margin: 0 0 10px 0;">
+        <strong>Locksmith Marketplace</strong>
+      </p>
+      <p style="font-size: 12px; color: #999; margin: 0;">
+        The trusted platform for automotive key professionals
+      </p>
+      <p style="font-size: 12px; color: #999; margin: 15px 0 0 0;">
+        © 2025 Locksmith Marketplace. All rights reserved.
+      </p>
+    </div>
   </div>
 </body>
 </html>

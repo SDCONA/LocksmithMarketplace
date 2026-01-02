@@ -88,42 +88,50 @@ export const AuthService = {
   },
 
   // Sign up
-  async signup(data: {
+  async signup(userData: {
     email: string;
     password: string;
     firstName: string;
     lastName: string;
-    phone?: string;
-    location?: string;
-    city?: string;
+    phone: string;
+    location: string;
+    city: string;
     recaptchaToken?: string;
-  }): Promise<AuthResponse> {
+  }): Promise<{ success: boolean; user?: any; error?: string; requiresEmailVerification?: boolean; requiresManualSignIn?: boolean }> {
     try {
-      const response = await fetch(`${API_URL}/auth/signup`, {
+      const response = await fetch(`https://${projectId}.supabase.co/functions/v1/make-server-a7e285ba/auth/signup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${publicAnonKey}`,
+          'Authorization': `Bearer ${publicAnonKey}`
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify(userData)
       });
 
-      const result = await response.json();
+      const data = await response.json();
+      
+      console.log('[AuthService] Signup response status:', response.status);
+      console.log('[AuthService] Signup response data:', data);
 
-      if (result.success && result.session) {
-        // Set session with Supabase client (session stored securely by Supabase)
-        await supabase.auth.setSession({
-          access_token: result.session.access_token,
-          refresh_token: result.session.refresh_token
-        });
+      if (data.success) {
+        return {
+          success: true,
+          user: data.user,
+          requiresEmailVerification: data.requiresEmailVerification,
+          requiresManualSignIn: data.requiresManualSignIn
+        };
+      } else {
+        console.error('[AuthService] Signup error:', data.error, data.message);
+        return {
+          success: false,
+          error: data.error || data.message || 'Failed to create account'
+        };
       }
-
-      return result;
     } catch (error) {
-      console.error('Signup error:', error);
+      console.error('[AuthService] Signup network error:', error);
       return {
         success: false,
-        error: 'Failed to connect to server',
+        error: 'Network error - please try again'
       };
     }
   },
