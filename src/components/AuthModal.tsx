@@ -211,7 +211,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
     setIsLoading(true);
 
     try {
-      // Get reCAPTCHA token
+      // STRICT MODE: Get reCAPTCHA token - will throw error if not configured
       const recaptchaToken = await executeRecaptcha('login');
 
       const response = await AuthService.signin(loginForm.email, loginForm.password, recaptchaToken);
@@ -227,9 +227,18 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
       }
     } catch (error) {
       console.error("Login error:", error);
-      toast.error("Sign in failed", {
-        description: "An unexpected error occurred",
-      });
+      
+      // Check if it's a reCAPTCHA error
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('reCAPTCHA')) {
+        toast.error("reCAPTCHA Error", {
+          description: errorMessage,
+        });
+      } else {
+        toast.error("Sign in failed", {
+          description: "An unexpected error occurred",
+        });
+      }
     } finally {
       setIsLoading(false);
     }
@@ -252,7 +261,7 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
     setIsLoading(true);
 
     try {
-      // Get reCAPTCHA token
+      // STRICT MODE: Get reCAPTCHA token - will throw error if not configured
       const recaptchaToken = await executeRecaptcha('signup');
 
       const response = await AuthService.signup({
@@ -306,9 +315,18 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
       }
     } catch (error) {
       console.error("❌ Registration error:", error);
-      toast.error("Registration failed", {
-        description: "An unexpected error occurred",
-      });
+      
+      // Check if it's a reCAPTCHA error
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('reCAPTCHA')) {
+        toast.error("reCAPTCHA Error", {
+          description: errorMessage,
+        });
+      } else {
+        toast.error("Registration failed", {
+          description: "An unexpected error occurred",
+        });
+      }
     } finally {
       setIsLoading(false);
     }

@@ -20,15 +20,16 @@ export async function verifyRecaptcha(
   // Get the secret key from environment
   const secretKey = Deno.env.get('RECAPTCHA_SECRET_KEY');
 
+  // STRICT MODE: reCAPTCHA MUST be configured on server
   if (!secretKey) {
-    console.error('[reCAPTCHA] RECAPTCHA_SECRET_KEY not configured');
+    console.error('[reCAPTCHA] RECAPTCHA_SECRET_KEY not configured - reCAPTCHA is REQUIRED!');
     return {
       success: false,
       error: 'reCAPTCHA not configured on server'
     };
   }
 
-  // Require token
+  // STRICT MODE: Token is REQUIRED
   if (!token) {
     console.error('[reCAPTCHA] No reCAPTCHA token provided');
     return { 
@@ -62,7 +63,7 @@ export async function verifyRecaptcha(
 
     // Check if the action matches
     if (data.action !== expectedAction) {
-      console.error(`reCAPTCHA action mismatch: expected ${expectedAction}, got ${data.action}`);
+      console.error(`[reCAPTCHA] Action mismatch: expected ${expectedAction}, got ${data.action}`);
       return {
         success: false,
         error: 'Invalid reCAPTCHA action'
@@ -71,7 +72,7 @@ export async function verifyRecaptcha(
 
     // Check if the score meets the minimum threshold
     if (data.score < minScore) {
-      console.warn(`reCAPTCHA score too low: ${data.score} (minimum: ${minScore})`);
+      console.warn(`[reCAPTCHA] Score too low: ${data.score} (minimum: ${minScore})`);
       return {
         success: false,
         score: data.score,
@@ -81,6 +82,7 @@ export async function verifyRecaptcha(
     }
 
     // All checks passed
+    console.log(`[reCAPTCHA] ✅ Verification successful - action: ${data.action}, score: ${data.score}`);
     return {
       success: true,
       score: data.score,
@@ -88,7 +90,7 @@ export async function verifyRecaptcha(
     };
 
   } catch (error) {
-    console.error('Error verifying reCAPTCHA:', error);
+    console.error('[reCAPTCHA] Error verifying reCAPTCHA:', error);
     return {
       success: false,
       error: 'Failed to verify reCAPTCHA'

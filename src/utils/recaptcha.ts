@@ -19,8 +19,9 @@ export function loadRecaptchaScript(): Promise<void> {
     }
 
     if (!RECAPTCHA_SITE_KEY) {
-      // Skip loading if not configured - graceful degradation
-      resolve(); // Don't fail, just skip
+      // STRICT MODE: reCAPTCHA is REQUIRED
+      console.error('[reCAPTCHA] RECAPTCHA_SITE_KEY is not configured - this is required!');
+      reject(new Error('reCAPTCHA site key not configured'));
       return;
     }
 
@@ -42,8 +43,8 @@ export function loadRecaptchaScript(): Promise<void> {
     };
     
     script.onerror = () => {
-      console.error('Failed to load reCAPTCHA script');
-      resolve(); // Don't fail the app, just skip reCAPTCHA
+      console.error('[reCAPTCHA] Failed to load reCAPTCHA script');
+      reject(new Error('Failed to load reCAPTCHA script'));
     };
 
     document.head.appendChild(script);
@@ -60,15 +61,19 @@ export async function executeRecaptcha(action: string): Promise<string> {
   await loadRecaptchaScript();
 
   return new Promise((resolve, reject) => {
-    // Check if site key is configured
+    // STRICT MODE: Check if site key is configured
     if (!RECAPTCHA_SITE_KEY) {
-      resolve(''); // Return empty string if not configured
+      const error = 'reCAPTCHA site key not configured';
+      console.error(`[reCAPTCHA] ${error}`);
+      reject(new Error(error));
       return;
     }
 
-    // Check if reCAPTCHA is loaded
+    // STRICT MODE: Check if reCAPTCHA is loaded
     if (!window.grecaptcha) {
-      resolve(''); // Return empty string if not loaded
+      const error = 'reCAPTCHA script not loaded';
+      console.error(`[reCAPTCHA] ${error}`);
+      reject(new Error(error));
       return;
     }
 
@@ -77,22 +82,16 @@ export async function executeRecaptcha(action: string): Promise<string> {
       window.grecaptcha
         .execute(RECAPTCHA_SITE_KEY, { action })
         .then((token: string) => {
+          if (!token) {
+            reject(new Error('reCAPTCHA failed to generate token'));
+            return;
+          }
           resolve(token);
         })
         .catch((error: any) => {
           console.error('[reCAPTCHA] Execution error:', error);
-          resolve(''); // Return empty string on error instead of rejecting
+          reject(error);
         });
     });
   });
-}
-
-// TypeScript declaration for grecaptcha
-declare global {
-  interface Window {
-    grecaptcha: {
-      ready: (callback: () => void) => void;
-      execute: (siteKey: string, options: { action: string }) => Promise<string>;
-    };
-  }
 }

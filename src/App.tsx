@@ -129,7 +129,12 @@ export default function App() {
 
   // Load reCAPTCHA script on mount
   useEffect(() => {
-    loadRecaptchaScript();
+    // Attempt to load reCAPTCHA, but don't crash the app if it fails
+    // Actual enforcement happens during login/signup
+    loadRecaptchaScript().catch((error) => {
+      console.error('[App] Failed to load reCAPTCHA on mount:', error.message);
+      console.warn('[App] reCAPTCHA must be configured for login/signup to work');
+    });
   }, []);
 
   // Check for email verification token in URL
