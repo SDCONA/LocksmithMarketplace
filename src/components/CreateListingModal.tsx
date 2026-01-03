@@ -31,7 +31,8 @@ const categories = [
 
 const conditions = [
   { value: "new", label: "New" },
-  { value: "used", label: "Used - Like New" },
+  { value: "used-like-new", label: "Used - Like New" },
+  { value: "used", label: "Used" },
   { value: "refurbished", label: "Refurbished" }
 ];
 
