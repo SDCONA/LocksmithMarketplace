@@ -46,6 +46,7 @@ import { DynamicRetailersPage } from "./components/DynamicRetailersPage";
 import { DealsPage } from "./components/DealsPage";
 import { RetailerDashboardPage } from "./components/RetailerDashboardPage";
 import { MyRetailerDealsPage } from "./components/MyRetailerDealsPage";
+import { HubSection } from "./components/HubSection";
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
 import { Badge } from "./components/ui/badge";
@@ -72,7 +73,8 @@ import {
   Info,
   Moon,
   Sun,
-  Tag
+  Tag,
+  Compass
 } from "lucide-react";
 
 // All major retailers promotional banners - memory optimized (KEY4, UHS Hardware, YCKG, KeyDirect, Transponder Island, Car & Truck Remotes, Best Key Supply, Noble Key Supply, Key Innovations, and Locksmith Keyless)
@@ -266,7 +268,7 @@ export default function App() {
     StatePersistence.saveNavigationState(savedNavState);
   }
   
-  const [currentSection, setCurrentSection] = useState<'retailers' | 'search' | 'marketplace' | 'messages' | 'account' | 'listing' | 'settings' | 'profile' | 'help' | 'seller-listings' | 'promote' | 'contact' | 'privacy' | 'terms' | 'deals' | 'marketplace-profile' | 'saved-items' | 'saved-marketplace-listings' | 'saved-deals' | 'archived-listings' | 'admin' | 'retailer-dashboard' | 'my-retailer-deals'>(savedNavState.currentSection as any);
+  const [currentSection, setCurrentSection] = useState<'retailers' | 'search' | 'marketplace' | 'messages' | 'account' | 'listing' | 'settings' | 'profile' | 'help' | 'seller-listings' | 'promote' | 'contact' | 'privacy' | 'terms' | 'deals' | 'marketplace-profile' | 'saved-items' | 'saved-marketplace-listings' | 'saved-deals' | 'archived-listings' | 'admin' | 'retailer-dashboard' | 'my-retailer-deals' | 'hub'>(savedNavState.currentSection as any);
   const [selectedListing, setSelectedListing] = useState<any>(savedNavState.selectedListing);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(savedNavState.selectedUserId);
   const [selectedSellerId, setSelectedSellerId] = useState<string | null>(savedNavState.selectedSellerId);
@@ -1688,7 +1690,7 @@ export default function App() {
               </div>
               
               {/* Mobile Navigation Buttons */}
-              <div className="flex items-center gap-2 justify-center">
+              <div className="flex items-center gap-1.5 justify-center">
                 {/* Marketplace */}
                 <Button
                   variant="ghost"
@@ -1741,6 +1743,21 @@ export default function App() {
                 >
                   <Tag className="h-5 w-5 mb-1" />
                   <span className="text-xs font-bold leading-tight">Deals</span>
+                </Button>
+
+                {/* Hub */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setCurrentSection('hub');
+                  }}
+                  className={`flex flex-col items-center justify-center h-12 w-16 rounded-lg transition-all duration-300 ${
+                    currentSection === 'hub' ? 'text-white bg-white/25 shadow-md border border-white/40' : 'text-white/90 hover:bg-white/15 hover:text-white'
+                  }`}
+                >
+                  <Compass className="h-5 w-5 mb-1" />
+                  <span className="text-xs font-bold leading-tight">Hub</span>
                 </Button>
               </div>
 
@@ -1882,6 +1899,20 @@ export default function App() {
                   >
                     <span className="hidden lg:inline">Marketplace</span>
                     <span className="lg:hidden">Market</span>
+                  </Button>
+                  
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setCurrentSection('hub');
+                      setPreviousConversationId(null);
+                    }}
+                    className={`text-white hover:bg-white/20 hover:shadow-lg rounded-xl px-4 py-2 transition-all duration-300 backdrop-blur-sm border border-transparent hover:border-white/20 ${
+                      currentSection === 'hub' ? 'bg-white/25 shadow-md border-white/30' : ''
+                    }`}
+                  >
+                    <span className="hidden lg:inline">Hub</span>
+                    <span className="lg:hidden">Hub</span>
                   </Button>
                   
                   <Button
@@ -2064,6 +2095,15 @@ export default function App() {
             onNavigateToRetailerDeals={() => setCurrentSection('my-retailer-deals')}
             onNavigateToSavedDeals={() => setCurrentSection('saved-deals')}
             currentUser={user}
+          />
+        )}
+
+        {/* Hub Section */}
+        {currentSection === 'hub' && (
+          <HubSection
+            onBack={() => setCurrentSection('marketplace')}
+            user={user}
+            onAuthRequired={handleAuthRequired}
           />
         )}
 

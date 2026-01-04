@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
-import { Store, MessageCircle, Heart, User, Tag } from "lucide-react";
+import { Store, MessageCircle, Heart, User, Tag, Grid3x3 } from "lucide-react";
 
 interface MobileNavigationProps {
   currentSection: string;
-  setCurrentSection: (section: 'retailers' | 'marketplace' | 'messages' | 'account' | 'listing' | 'settings' | 'profile' | 'help' | 'seller-listings' | 'deals' | 'contact' | 'privacy' | 'terms') => void;
+  setCurrentSection: (section: 'retailers' | 'marketplace' | 'messages' | 'account' | 'listing' | 'settings' | 'profile' | 'help' | 'seller-listings' | 'deals' | 'contact' | 'privacy' | 'terms' | 'hub') => void;
   user: any;
   onAuthRequired: () => void;
   unreadMessages?: number;
@@ -42,10 +42,14 @@ export function MobileNavigation({
     setCurrentSection('deals');
   };
 
+  const handleHubClick = () => {
+    setCurrentSection('hub');
+  };
+
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 bg-gradient-to-r from-blue-600/90 via-blue-500/85 to-indigo-600/90 dark:from-gray-800 dark:via-gray-900 dark:to-black backdrop-blur-xl border-t border-white/20 dark:border-gray-700 shadow-[0_-8px_32px_rgba(0,0,0,0.12)] pb-[env(safe-area-inset-bottom)]" style={{ zIndex: 9999 }}>
       <div className="absolute inset-0 bg-gradient-to-t from-white/10 to-transparent dark:from-white/5 pointer-events-none"></div>
-      <div className="grid grid-cols-4 h-14 sm:h-16 relative">
+      <div className="grid grid-cols-5 h-14 sm:h-16 relative">
         {/* HIDDEN: Retailers button temporarily hidden */}
         {/* Retailers */}
         {false && (
@@ -75,6 +79,18 @@ export function MobileNavigation({
         >
           <Store className="h-4 w-4 sm:h-5 sm:w-5 mb-0.5 sm:mb-1" />
           <span className="text-xs sm:text-sm font-bold leading-tight">Market</span>
+        </Button>
+
+        {/* Hub */}
+        <Button
+          variant="ghost"
+          onClick={() => handleButtonClick('hub', handleHubClick)}
+          className={`flex flex-col items-center justify-center h-full rounded-none px-1 transition-all duration-300 ${
+            currentSection === 'hub' ? 'text-white bg-white/25 shadow-md border-t-2 border-white/40' : 'text-white/90 hover:bg-white/15 hover:text-white'
+          } ${pulsingButton === 'hub' ? 'animate-button-pulse' : ''}`}
+        >
+          <Grid3x3 className="h-4 w-4 sm:h-5 sm:w-5 mb-0.5 sm:mb-1" />
+          <span className="text-xs sm:text-sm font-bold leading-tight">Hub</span>
         </Button>
 
         {/* Messages */}
