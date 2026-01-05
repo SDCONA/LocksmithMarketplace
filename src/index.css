@@ -1407,10 +1407,6 @@
     min-width: calc(var(--spacing) * 0);
   }
 
-  .min-w-\[3rem\] {
-    min-width: 3rem;
-  }
-
   .min-w-\[8rem\] {
     min-width: 8rem;
   }
@@ -4988,18 +4984,6 @@
   }
 
   @media (width >= 40rem) {
-    .sm\:flex {
-      display: flex;
-    }
-  }
-
-  @media (width >= 40rem) {
-    .sm\:hidden {
-      display: none;
-    }
-  }
-
-  @media (width >= 40rem) {
     .sm\:h-1\.5 {
       height: calc(var(--spacing) * 1.5);
     }
@@ -5321,12 +5305,6 @@
   @media (width >= 48rem) {
     .md\:hidden {
       display: none;
-    }
-  }
-
-  @media (width >= 48rem) {
-    .md\:inline {
-      display: inline;
     }
   }
 

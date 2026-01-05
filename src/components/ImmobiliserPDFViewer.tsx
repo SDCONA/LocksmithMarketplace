@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { ArrowLeft, Loader2, ZoomIn, ZoomOut, Download } from "lucide-react";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import { Button } from "./ui/button";
-import { toast } from "sonner";
 
 interface ImmobiliserPDFViewerProps {
   brand: string;
@@ -59,9 +58,9 @@ export function ImmobiliserPDFViewer({ brand, model, startPage, endPage, onBack 
   const [isLoading, setIsLoading] = useState(true);
   const [loadingPages, setLoadingPages] = useState<Set<number>>(new Set());
   const [renderedPages, setRenderedPages] = useState<Set<number>>(new Set());
-  const [scale, setScale] = useState(1.5);
   const [error, setError] = useState<string | null>(null);
   
+  const scale = 1.5; // Fixed scale
   const canvasRefs = useRef<Map<number, HTMLCanvasElement>>(new Map());
   const renderTasksRef = useRef<Map<number, RenderTask>>(new Map());
   const renderingPagesRef = useRef<Set<number>>(new Set()); // Synchronous lock
@@ -280,158 +279,34 @@ export function ImmobiliserPDFViewer({ brand, model, startPage, endPage, onBack 
     };
   }, [pdfDoc, renderPage]);
 
-  // Re-render all visible pages when scale changes
-  useEffect(() => {
-    if (!pdfDoc) return;
-    
-    // Cancel all existing render tasks when scale changes
-    renderTasksRef.current.forEach((task) => {
-      try {
-        task.cancel();
-      } catch (e) {
-        // Ignore
-      }
-    });
-    renderTasksRef.current.clear();
-    
-    // Clear the synchronous lock
-    renderingPagesRef.current.clear();
-    
-    // Clear all states to force re-render
-    setRenderedPages(new Set());
-    setLoadingPages(new Set());
-    
-    // Small delay to ensure state updates before re-rendering
-    setTimeout(() => {
-      // Re-render all pages
-      for (let pageNum = startPage; pageNum <= endPage; pageNum++) {
-        const canvas = canvasRefs.current.get(pageNum);
-        if (canvas) {
-          // Check if canvas is in viewport
-          const rect = canvas.getBoundingClientRect();
-          const isVisible = rect.top < window.innerHeight && rect.bottom > 0;
-          if (isVisible) {
-            renderPage(pageNum);
-          }
-        }
-      }
-    }, 100);
-  }, [scale, pdfDoc, startPage, endPage, renderPage]);
-
-  // Zoom controls
-  const handleZoomIn = () => {
-    setScale(prev => Math.min(prev + 0.25, 3));
-  };
-
-  const handleZoomOut = () => {
-    setScale(prev => Math.max(prev - 0.25, 0.5));
-  };
-
   // Generate array of page numbers
   const pageNumbers = Array.from(
     { length: endPage - startPage + 1 },
     (_, i) => startPage + i
   );
 
-  // Download handler
-  const handleDownload = () => {
-    toast.info('Opening PDF in new tab...');
-    window.open(PDF_URL, '_blank');
-  };
-
   return (
     <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
       {/* Fixed Header */}
       <div className="bg-white dark:bg-gray-800 shadow-lg sticky top-0 z-20 border-b border-gray-200 dark:border-gray-700">
         <div className="max-w-7xl mx-auto px-4 py-3">
-          <div className="flex items-center justify-between gap-4">
-            {/* Left: Back button and title */}
-            <div className="flex items-center gap-3 min-w-0 flex-1">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onBack}
-                className="flex-shrink-0"
-              >
-                <ArrowLeft className="h-5 w-5" />
-              </Button>
-              <div className="min-w-0">
-                <h1 className="font-bold text-base sm:text-lg text-gray-800 dark:text-gray-200 truncate">
-                  {brand} {model}
-                </h1>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Pages {startPage}-{endPage} ({pageNumbers.length} {pageNumbers.length === 1 ? 'page' : 'pages'})
-                </p>
-              </div>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onBack}
+              className="flex-shrink-0"
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div className="min-w-0">
+              <h1 className="font-bold text-base sm:text-lg text-gray-800 dark:text-gray-200 truncate">
+                {brand} {model}
+              </h1>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Pages {startPage}-{endPage} ({pageNumbers.length} {pageNumbers.length === 1 ? 'page' : 'pages'})
+              </p>
             </div>
-
-            {/* Right: Controls */}
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {/* Zoom Controls */}
-              <div className="hidden sm:flex items-center gap-1">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleZoomOut}
-                  disabled={scale <= 0.5}
-                >
-                  <ZoomOut className="h-4 w-4" />
-                </Button>
-                <span className="text-xs px-2 text-gray-600 dark:text-gray-400 min-w-[3rem] text-center">
-                  {Math.round(scale * 100)}%
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleZoomIn}
-                  disabled={scale >= 3}
-                >
-                  <ZoomIn className="h-4 w-4" />
-                </Button>
-              </div>
-
-              {/* Download Button */}
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleDownload}
-                className="hidden sm:flex items-center gap-2"
-              >
-                <Download className="h-4 w-4" />
-                <span className="hidden md:inline">Open PDF</span>
-              </Button>
-            </div>
-          </div>
-
-          {/* Mobile Zoom Controls */}
-          <div className="flex sm:hidden items-center justify-center gap-2 mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleZoomOut}
-              disabled={scale <= 0.5}
-            >
-              <ZoomOut className="h-4 w-4" />
-            </Button>
-            <span className="text-xs px-3 text-gray-600 dark:text-gray-400">
-              {Math.round(scale * 100)}%
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleZoomIn}
-              disabled={scale >= 3}
-            >
-              <ZoomIn className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleDownload}
-              className="ml-2"
-            >
-              <Download className="h-4 w-4" />
-            </Button>
           </div>
         </div>
       </div>

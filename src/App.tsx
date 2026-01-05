@@ -505,7 +505,7 @@ export default function App() {
   useEffect(() => {
     const handlePopState = () => {
       const path = window.location.pathname.slice(1);
-      const validSections = ['retailers', 'search', 'marketplace', 'messages', 'account', 'listing', 'settings', 'profile', 'help', 'seller-listings', 'promote', 'contact', 'privacy', 'terms', 'deals', 'marketplace-profile', 'saved-items', 'saved-marketplace-listings', 'saved-deals', 'archived-listings', 'admin', 'retailer-dashboard', 'my-retailer-deals'];
+      const validSections = ['retailers', 'search', 'marketplace', 'messages', 'account', 'listing', 'settings', 'profile', 'help', 'seller-listings', 'promote', 'contact', 'privacy', 'terms', 'deals', 'marketplace-profile', 'saved-items', 'saved-marketplace-listings', 'saved-deals', 'archived-listings', 'admin', 'retailer-dashboard', 'my-retailer-deals', 'hub'];
       if (validSections.includes(path)) {
         setCurrentSection(path as any);
       }
@@ -524,7 +524,7 @@ export default function App() {
     // Check for path-based routing (e.g., /messages)
     const path = window.location.pathname.slice(1);
     
-    const validSections = ['retailers', 'search', 'marketplace', 'messages', 'account', 'listing', 'settings', 'profile', 'help', 'seller-listings', 'promote', 'contact', 'privacy', 'terms', 'deals', 'marketplace-profile', 'saved-items', 'saved-marketplace-listings', 'saved-deals', 'archived-listings', 'admin', 'retailer-dashboard', 'my-retailer-deals'];
+    const validSections = ['retailers', 'search', 'marketplace', 'messages', 'account', 'listing', 'settings', 'profile', 'help', 'seller-listings', 'promote', 'contact', 'privacy', 'terms', 'deals', 'marketplace-profile', 'saved-items', 'saved-marketplace-listings', 'saved-deals', 'archived-listings', 'admin', 'retailer-dashboard', 'my-retailer-deals', 'hub'];
     
     // Prioritize query parameter over path
     if (sectionParam && validSections.includes(sectionParam)) {
