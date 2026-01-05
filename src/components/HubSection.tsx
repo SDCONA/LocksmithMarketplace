@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { HubPage } from "./HubPage";
 import { TransponderFitmentPage } from "./TransponderFitmentPage";
 import { CarMakeTransponderPage } from "./CarMakeTransponderPage";
@@ -62,15 +62,45 @@ interface HubSectionProps {
 }
 
 export function HubSection({ onBack, user, onAuthRequired }: HubSectionProps) {
-  const [currentPage, setCurrentPage] = useState<'hub' | 'transponder-fitment' | 'vag-part-numbers' | 'vag-audi-parts' | 'vag-seat-parts' | 'vag-skoda-parts' | 'vag-volkswagen-parts' | 'car-make-transponder' | 'audi' | 'acura' | 'alfa-romeo' | 'bmw' | 'buick' | 'cadillac' | 'chevrolet' | 'chrysler' | 'citroen' | 'dacia' | 'daf' | 'daewoo' | 'daihatsu' | 'dodge' | 'fiat' | 'ford' | 'gmc' | 'honda' | 'hummer' | 'hyundai' | 'iveco' | 'isuzu' | 'jaguar' | 'jeep' | 'kawasaki' | 'kia' | 'lancia' | 'land-rover' | 'lexus' | 'lincoln' | 'mazda' | 'mercedes' | 'mitsubishi' | 'nissan' | 'opel' | 'peugeot' | 'porsche' | 'renault' | 'rover' | 'seat' | 'skoda' | 'subaru' | 'suzuki' | 'toyota' | 'volkswagen' | 'volvo' | 'yamaha'>('hub');
+  // Initialize from URL hash (e.g., #hub-transponder-fitment)
+  const getInitialPage = () => {
+    const hash = window.location.hash.replace('#hub-', '');
+    if (hash && hash !== '') {
+      return hash as any;
+    }
+    return 'hub';
+  };
+
+  const [currentPage, setCurrentPage] = useState<'hub' | 'transponder-fitment' | 'vag-part-numbers' | 'vag-audi-parts' | 'vag-seat-parts' | 'vag-skoda-parts' | 'vag-volkswagen-parts' | 'car-make-transponder' | 'audi' | 'acura' | 'alfa-romeo' | 'bmw' | 'buick' | 'cadillac' | 'chevrolet' | 'chrysler' | 'citroen' | 'dacia' | 'daf' | 'daewoo' | 'daihatsu' | 'dodge' | 'fiat' | 'ford' | 'gmc' | 'honda' | 'hummer' | 'hyundai' | 'iveco' | 'isuzu' | 'jaguar' | 'jeep' | 'kawasaki' | 'kia' | 'lancia' | 'land-rover' | 'lexus' | 'lincoln' | 'mazda' | 'mercedes' | 'mitsubishi' | 'nissan' | 'opel' | 'peugeot' | 'porsche' | 'renault' | 'rover' | 'seat' | 'skoda' | 'subaru' | 'suzuki' | 'toyota' | 'volkswagen' | 'volvo' | 'yamaha'>(getInitialPage);
   const [selectedCarMake, setSelectedCarMake] = useState<string | null>(null);
+
+  // Listen for hash changes (browser back/forward buttons)
+  useEffect(() => {
+    const handleHashChange = () => {
+      const hash = window.location.hash.replace('#hub-', '');
+      if (hash && hash !== '') {
+        setCurrentPage(hash as any);
+      } else {
+        setCurrentPage('hub');
+      }
+    };
+
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
+
+  // Update URL hash when page changes
+  const navigateToPage = (page: typeof currentPage) => {
+    window.location.hash = `hub-${page}`;
+    setCurrentPage(page);
+  };
 
   const handleNavigateToTransponderFitment = () => {
     if (!user) {
       onAuthRequired();
       return;
     }
-    setCurrentPage('transponder-fitment');
+    navigateToPage('transponder-fitment');
   };
 
   const handleNavigateToVAGPartNumbers = () => {
@@ -78,7 +108,7 @@ export function HubSection({ onBack, user, onAuthRequired }: HubSectionProps) {
       onAuthRequired();
       return;
     }
-    setCurrentPage('vag-part-numbers');
+    navigateToPage('vag-part-numbers');
   };
 
   return (
@@ -96,16 +126,16 @@ export function HubSection({ onBack, user, onAuthRequired }: HubSectionProps) {
       {/* VAG Part Numbers Main Page */}
       {currentPage === 'vag-part-numbers' && (
         <SeatSkodaAudiVWPartNumbersPage
-          onBack={() => setCurrentPage('hub')}
+          onBack={() => navigateToPage('hub')}
           onSelectBrand={(brand) => {
             if (brand === 'Audi') {
-              setCurrentPage('vag-audi-parts');
+              navigateToPage('vag-audi-parts');
             } else if (brand === 'SEAT') {
-              setCurrentPage('vag-seat-parts');
+              navigateToPage('vag-seat-parts');
             } else if (brand === 'Skoda') {
-              setCurrentPage('vag-skoda-parts');
+              navigateToPage('vag-skoda-parts');
             } else if (brand === 'Volkswagen') {
-              setCurrentPage('vag-volkswagen-parts');
+              navigateToPage('vag-volkswagen-parts');
             }
           }}
         />
@@ -114,128 +144,128 @@ export function HubSection({ onBack, user, onAuthRequired }: HubSectionProps) {
       {/* VAG Brand Part Number Pages */}
       {currentPage === 'vag-audi-parts' && (
         <AudiPartNumbersPage
-          onBack={() => setCurrentPage('vag-part-numbers')}
+          onBack={() => navigateToPage('vag-part-numbers')}
         />
       )}
 
       {currentPage === 'vag-seat-parts' && (
         <SeatPartNumbersPage
-          onBack={() => setCurrentPage('vag-part-numbers')}
+          onBack={() => navigateToPage('vag-part-numbers')}
         />
       )}
 
       {currentPage === 'vag-skoda-parts' && (
         <SkodaPartNumbersPage
-          onBack={() => setCurrentPage('vag-part-numbers')}
+          onBack={() => navigateToPage('vag-part-numbers')}
         />
       )}
 
       {currentPage === 'vag-volkswagen-parts' && (
         <VolkswagenPartNumbersPage
-          onBack={() => setCurrentPage('vag-part-numbers')}
+          onBack={() => navigateToPage('vag-part-numbers')}
         />
       )}
 
       {/* Transponder Fitment Page */}
       {currentPage === 'transponder-fitment' && (
         <TransponderFitmentPage
-          onBack={() => setCurrentPage('hub')}
+          onBack={() => navigateToPage('hub')}
           onSelectMake={(make) => {
             setSelectedCarMake(make);
             if (make === 'Audi') {
-              setCurrentPage('audi');
+              navigateToPage('audi');
             } else if (make === 'Acura') {
-              setCurrentPage('acura');
+              navigateToPage('acura');
             } else if (make === 'Alfa Romeo') {
-              setCurrentPage('alfa-romeo');
+              navigateToPage('alfa-romeo');
             } else if (make === 'BMW') {
-              setCurrentPage('bmw');
+              navigateToPage('bmw');
             } else if (make === 'Buick') {
-              setCurrentPage('buick');
+              navigateToPage('buick');
             } else if (make === 'Cadillac') {
-              setCurrentPage('cadillac');
+              navigateToPage('cadillac');
             } else if (make === 'Chevrolet') {
-              setCurrentPage('chevrolet');
+              navigateToPage('chevrolet');
             } else if (make === 'Chrysler') {
-              setCurrentPage('chrysler');
+              navigateToPage('chrysler');
             } else if (make === 'Citroën') {
-              setCurrentPage('citroen');
+              navigateToPage('citroen');
             } else if (make === 'Dacia') {
-              setCurrentPage('dacia');
+              navigateToPage('dacia');
             } else if (make === 'DAF') {
-              setCurrentPage('daf');
+              navigateToPage('daf');
             } else if (make === 'DAEWOO') {
-              setCurrentPage('daewoo');
+              navigateToPage('daewoo');
             } else if (make === 'Daihatsu') {
-              setCurrentPage('daihatsu');
+              navigateToPage('daihatsu');
             } else if (make === 'Dodge') {
-              setCurrentPage('dodge');
+              navigateToPage('dodge');
             } else if (make === 'Fiat') {
-              setCurrentPage('fiat');
+              navigateToPage('fiat');
             } else if (make === 'Ford') {
-              setCurrentPage('ford');
+              navigateToPage('ford');
             } else if (make === 'GMC') {
-              setCurrentPage('gmc');
+              navigateToPage('gmc');
             } else if (make === 'Honda') {
-              setCurrentPage('honda');
+              navigateToPage('honda');
             } else if (make === 'Hummer') {
-              setCurrentPage('hummer');
+              navigateToPage('hummer');
             } else if (make === 'Hyundai') {
-              setCurrentPage('hyundai');
+              navigateToPage('hyundai');
             } else if (make === 'Iveco') {
-              setCurrentPage('iveco');
+              navigateToPage('iveco');
             } else if (make === 'Isuzu') {
-              setCurrentPage('isuzu');
+              navigateToPage('isuzu');
             } else if (make === 'Jaguar') {
-              setCurrentPage('jaguar');
+              navigateToPage('jaguar');
             } else if (make === 'Jeep') {
-              setCurrentPage('jeep');
+              navigateToPage('jeep');
             } else if (make === 'Kawasaki') {
-              setCurrentPage('kawasaki');
+              navigateToPage('kawasaki');
             } else if (make === 'Kia') {
-              setCurrentPage('kia');
+              navigateToPage('kia');
             } else if (make === 'Lancia') {
-              setCurrentPage('lancia');
+              navigateToPage('lancia');
             } else if (make === 'Land Rover') {
-              setCurrentPage('land-rover');
+              navigateToPage('land-rover');
             } else if (make === 'Lexus') {
-              setCurrentPage('lexus');
+              navigateToPage('lexus');
             } else if (make === 'Lincoln') {
-              setCurrentPage('lincoln');
+              navigateToPage('lincoln');
             } else if (make === 'Mazda') {
-              setCurrentPage('mazda');
+              navigateToPage('mazda');
             } else if (make === 'Mercedes-Benz') {
-              setCurrentPage('mercedes');
+              navigateToPage('mercedes');
             } else if (make === 'Mitsubishi') {
-              setCurrentPage('mitsubishi');
+              navigateToPage('mitsubishi');
             } else if (make === 'Nissan') {
-              setCurrentPage('nissan');
+              navigateToPage('nissan');
             } else if (make === 'Opel') {
-              setCurrentPage('opel');
+              navigateToPage('opel');
             } else if (make === 'Peugeot') {
-              setCurrentPage('peugeot');
+              navigateToPage('peugeot');
             } else if (make === 'Porsche') {
-              setCurrentPage('porsche');
+              navigateToPage('porsche');
             } else if (make === 'Renault') {
-              setCurrentPage('renault');
+              navigateToPage('renault');
             } else if (make === 'Rover') {
-              setCurrentPage('rover');
+              navigateToPage('rover');
             } else if (make === 'SEAT') {
-              setCurrentPage('seat');
+              navigateToPage('seat');
             } else if (make === 'Skoda') {
-              setCurrentPage('skoda');
+              navigateToPage('skoda');
             } else if (make === 'Subaru') {
-              setCurrentPage('subaru');
+              navigateToPage('subaru');
             } else if (make === 'Suzuki') {
-              setCurrentPage('suzuki');
+              navigateToPage('suzuki');
             } else if (make === 'Toyota') {
-              setCurrentPage('toyota');
+              navigateToPage('toyota');
             } else if (make === 'Volkswagen') {
-              setCurrentPage('volkswagen');
+              navigateToPage('volkswagen');
             } else if (make === 'Volvo') {
-              setCurrentPage('volvo');
+              navigateToPage('volvo');
             } else if (make === 'Yamaha') {
-              setCurrentPage('yamaha');
+              navigateToPage('yamaha');
             } else {
               setCurrentPage('car-make-transponder');
             }

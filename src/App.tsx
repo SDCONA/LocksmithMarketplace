@@ -2035,12 +2035,12 @@ export default function App() {
 
       {/* Main content wrapper */}
       <div className="flex-1 flex flex-col">
-        {/* Vehicle Selector - Mobile only (desktop version is in header) */}
-        <div className="md:hidden">
+        {/* Vehicle Selector - HIDDEN: Not currently in use */}
+        {/* <div className="md:hidden">
           {(currentSection === 'retailers' || currentSection === 'search' || showSearchResults) && !['messages', 'account', 'listing', 'settings', 'profile', 'help', 'seller-listings', 'promote', 'contact', 'privacy', 'terms', 'saved-items', 'saved-marketplace-listings', 'saved-deals', 'archived-listings', 'admin', 'retailer-dashboard', 'my-retailer-deals'].includes(currentSection) && (
             <VehicleSelector onVehicleSelect={handleVehicleSelect} />
           )}
-        </div>
+        </div> */}
 
         {/* Messages Page */}
         {currentSection === 'messages' && (

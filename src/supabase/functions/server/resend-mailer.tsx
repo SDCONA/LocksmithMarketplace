@@ -18,7 +18,7 @@ interface ResendResponse {
 }
 
 // Using your verified domain for sending emails
-const DEFAULT_FROM = 'Locksmith Marketplace <noreply@locksmithmarketplace.com>';
+const DEFAULT_FROM = 'Locksmith Marketplace <support@locksmithmarketplace.com>';
 
 /**
  * Send an email using Resend API

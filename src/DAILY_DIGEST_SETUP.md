@@ -319,7 +319,7 @@ After implementing, you should see:
 
 1. Verify sender domain is configured in Resend
 2. Add SPF/DKIM records to your domain
-3. Ensure "From" address is `noreply@locksmithmarketplace.com`
+3. Ensure "From" address is `support@locksmithmarketplace.com`
 4. Check email content doesn't trigger spam filters
 
 ---
