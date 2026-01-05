@@ -514,38 +514,6 @@
 
 ---
 
-### 39. hub_lishi_tools
-- `id` (bigserial, NOT NULL, PRIMARY KEY)
-- `tool_name` (text, NOT NULL)
-- `tool_code` (text, nullable)
-- `brand` (text, NOT NULL)
-- `compatibility` (jsonb, nullable, default: '[]'::jsonb)
-- `years` (text, nullable)
-- `notes` (text, nullable)
-- `profile` (text, nullable)
-- `image_path` (text, nullable)
-- `created_at` (timestamp with time zone, nullable, default: now())
-- `updated_at` (timestamp with time zone, nullable, default: now())
-
-**Indexes:**
-- `idx_hub_lishi_tools_brand` on `brand` (btree)
-- `idx_hub_lishi_tools_tool_code` on `tool_code` (btree)
-- `idx_hub_lishi_tools_created_at` on `created_at DESC` (btree)
-
-**Triggers:**
-- `trigger_update_hub_lishi_tools_updated_at` - Auto-updates `updated_at` on row update
-
-**RLS Policies:**
-- ⚠️ **TO BE DOCUMENTED** - Check Supabase for current RLS policies
-
-**Notes:**
-- Used by Hub "Car Brand to Lishi" feature
-- Auto-inserts data when brand page is first visited (see server routes)
-- `compatibility` field stores array of compatible vehicle models/years
-- Each tool is linked to a specific car brand for filtering
-
----
-
 ## 🚨 CRITICAL ADMIN SYSTEM ISSUES
 
 ### ⚠️ TWO CONFLICTING ADMIN CHECK FUNCTIONS:

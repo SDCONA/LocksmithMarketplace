@@ -6493,4 +6493,8 @@ app.put('/make-server-a7e285ba/user-preferences', async (c) => {
   }
 });
 
+// ============================================
+// DOCUMENT ROUTES
+// ============================================
+
 Deno.serve(app.fetch);

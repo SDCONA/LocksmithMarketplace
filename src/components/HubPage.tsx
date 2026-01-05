@@ -1,15 +1,16 @@
-import { ArrowLeft, Cpu, Package } from "lucide-react";
+import { ArrowLeft, Cpu, Package, FileText, MapPin } from "lucide-react";
 import { Button } from "./ui/button";
 
 interface HubPageProps {
   onBack: () => void;
   onNavigateToTransponderFitment: () => void;
   onNavigateToVAGPartNumbers: () => void;
+  onNavigateToImmobiliserLocation: () => void;
   isAuthenticated: boolean;
 }
 
-export function HubPage({ onBack, onNavigateToTransponderFitment, onNavigateToVAGPartNumbers, isAuthenticated }: HubPageProps) {
-  // Array of 30 buttons - first two are active
+export function HubPage({ onBack, onNavigateToTransponderFitment, onNavigateToVAGPartNumbers, onNavigateToImmobiliserLocation, isAuthenticated }: HubPageProps) {
+  // Array of 30 buttons - first three are active
   const buttons = [
     {
       id: 1,
@@ -25,8 +26,15 @@ export function HubPage({ onBack, onNavigateToTransponderFitment, onNavigateToVA
       active: true,
       onClick: onNavigateToVAGPartNumbers
     },
-    ...Array.from({ length: 28 }, (_, i) => ({
-      id: i + 3,
+    {
+      id: 3,
+      name: "Immobiliser Location",
+      icon: MapPin,
+      active: true,
+      onClick: onNavigateToImmobiliserLocation
+    },
+    ...Array.from({ length: 27 }, (_, i) => ({
+      id: i + 4,
       name: "",
       icon: null,
       active: false,

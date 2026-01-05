@@ -10,7 +10,7 @@ interface HubImageProps {
 /**
  * Component to display images from the Hub storage bucket
  * Images should be uploaded to: make-a7e285ba-hub-images bucket
- * Example path: "lishi/acura/tool-1.jpg"
+ * Example path: "transponders/honda/civic-2020.jpg"
  */
 export function HubImage({ imagePath, alt, className = "", fallbackText }: HubImageProps) {
   const [imageError, setImageError] = useState(false);

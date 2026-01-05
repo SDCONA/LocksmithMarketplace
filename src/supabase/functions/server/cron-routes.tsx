@@ -1030,6 +1030,7 @@ cronApp.post("/daily-digest-cron", async (c) => {
           id,
           conversation_id,
           sender_id,
+          created_at,
           conversations!inner (
             id,
             buyer_id,
@@ -1037,13 +1038,29 @@ cronApp.post("/daily-digest-cron", async (c) => {
             is_admin_warning
           )
         `)
-        .eq('is_read', false);
+        .eq('is_read', false)
+        .gte('created_at', last24Hours.toISOString());  // ✅ FIXED: Only messages from last 24 hours
 
       if (unreadMessages && unreadMessages.length > 0) {
+        // Check for deleted conversations
+        const { data: deletedConversations } = await supabaseAdmin
+          .from('conversation_deletions')
+          .select('conversation_id')
+          .eq('user_id', user.id);
+
+        const deletedConvIds = new Set(
+          deletedConversations?.map((d: any) => d.conversation_id) || []
+        );
+
         const userConversations = new Set<string>();
         for (const msg of unreadMessages) {
           const conv = msg.conversations;
           if (!conv) continue;
+
+          // ✅ FIXED: Skip deleted conversations
+          if (deletedConvIds.has(msg.conversation_id)) {
+            continue;
+          }
 
           let isRecipient = false;
           if (conv.is_admin_warning && conv.buyer_id === user.id) {
