@@ -3,10 +3,13 @@
   "outputDirectory": "build",
   "installCommand": "npm install --force",
   "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
+    { "source": "/hub", "destination": "/index.html" },
+    { "source": "/deals", "destination": "/index.html" },
+    { "source": "/messages", "destination": "/index.html" },
+    { "source": "/account", "destination": "/index.html" },
+    { "source": "/admin", "destination": "/index.html" },
+    { "source": "/listing/:id", "destination": "/index.html" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
     {
