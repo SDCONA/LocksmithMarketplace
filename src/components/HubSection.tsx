@@ -11,6 +11,52 @@ import { ImmobiliserLocationPage } from "./ImmobiliserLocationPage";
 import { ImmobiliserModelSelector } from "./ImmobiliserModelSelector";
 import { ImmobiliserPDFViewer } from "./ImmobiliserPDFViewer";
 import { AudiTransponderPage } from "./AudiTransponderPage";
+import { AcuraTransponderPage } from "./AcuraTransponderPage";
+import { AlfaRomeoTransponderPage } from "./AlfaRomeoTransponderPage";
+import { BMWTransponderPage } from "./BMWTransponderPage";
+import { BuickTransponderPage } from "./BuickTransponderPage";
+import { CadillacTransponderPage } from "./CadillacTransponderPage";
+import { ChevroletTransponderPage } from "./ChevroletTransponderPage";
+import { ChryslerTransponderPage } from "./ChryslerTransponderPage";
+import { CitroenTransponderPage } from "./CitroenTransponderPage";
+import { DaciaTransponderPage } from "./DaciaTransponderPage";
+import { DafTransponderPage } from "./DafTransponderPage";
+import { DaewooTransponderPage } from "./DaewooTransponderPage";
+import { DaihatsuTransponderPage } from "./DaihatsuTransponderPage";
+import { DodgeTransponderPage } from "./DodgeTransponderPage";
+import { FiatTransponderPage } from "./FiatTransponderPage";
+import { FordTransponderPage } from "./FordTransponderPage";
+import { GMCTransponderPage } from "./GMCTransponderPage";
+import { HondaTransponderPage } from "./HondaTransponderPage";
+import { HummerTransponderPage } from "./HummerTransponderPage";
+import { HyundaiTransponderPage } from "./HyundaiTransponderPage";
+import { IvecoTransponderPage } from "./IvecoTransponderPage";
+import { IsusuTransponderPage } from "./IsusuTransponderPage";
+import { JaguarTransponderPage } from "./JaguarTransponderPage";
+import { JeepTransponderPage } from "./JeepTransponderPage";
+import { KawasakiTransponderPage } from "./KawasakiTransponderPage";
+import { KiaTransponderPage } from "./KiaTransponderPage";
+import { LanciaTransponderPage } from "./LanciaTransponderPage";
+import { LandRoverTransponderPage } from "./LandRoverTransponderPage";
+import { LexusTransponderPage } from "./LexusTransponderPage";
+import { LincolnTransponderPage } from "./LincolnTransponderPage";
+import { MazdaTransponderPage } from "./MazdaTransponderPage";
+import { MercedesTransponderPage } from "./MercedesTransponderPage";
+import { MitsubishiTransponderPage } from "./MitsubishiTransponderPage";
+import { NissanTransponderPage } from "./NissanTransponderPage";
+import { OpelTransponderPage } from "./OpelTransponderPage";
+import { PeugeotTransponderPage } from "./PeugeotTransponderPage";
+import { PorscheTransponderPage } from "./PorscheTransponderPage";
+import { RenaultTransponderPage } from "./RenaultTransponderPage";
+import { RoverTransponderPage } from "./RoverTransponderPage";
+import { SeatTransponderPage } from "./SeatTransponderPage";
+import { SkodaTransponderPage } from "./SkodaTransponderPage";
+import { SubaruTransponderPage } from "./SubaruTransponderPage";
+import { SuzukiTransponderPage } from "./SuzukiTransponderPage";
+import { ToyotaTransponderPage } from "./ToyotaTransponderPage";
+import { VolkswagenTransponderPage } from "./VolkswagenTransponderPage";
+import { VolvoTransponderPage } from "./VolvoTransponderPage";
+import { YamahaTransponderPage } from "./YamahaTransponderPage";
 
 interface HubSectionProps {
   onBack: () => void;
@@ -282,14 +328,336 @@ export function HubSection({ onBack, user, onAuthRequired }: HubSectionProps) {
       {/* Audi Transponder Page */}
       {currentPage === 'audi' && (
         <AudiTransponderPage
-          onBack={() => setCurrentPage('transponder-fitment')}
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Acura Transponder Page */}
+      {currentPage === 'acura' && (
+        <AcuraTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Alfa Romeo Transponder Page */}
+      {currentPage === 'alfa-romeo' && (
+        <AlfaRomeoTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* BMW Transponder Page */}
+      {currentPage === 'bmw' && (
+        <BMWTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Buick Transponder Page */}
+      {currentPage === 'buick' && (
+        <BuickTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Cadillac Transponder Page */}
+      {currentPage === 'cadillac' && (
+        <CadillacTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Chevrolet Transponder Page */}
+      {currentPage === 'chevrolet' && (
+        <ChevroletTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Chrysler Transponder Page */}
+      {currentPage === 'chrysler' && (
+        <ChryslerTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Citroen Transponder Page */}
+      {currentPage === 'citroen' && (
+        <CitroenTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Dacia Transponder Page */}
+      {currentPage === 'dacia' && (
+        <DaciaTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Daf Transponder Page */}
+      {currentPage === 'daf' && (
+        <DafTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Daewoo Transponder Page */}
+      {currentPage === 'daewoo' && (
+        <DaewooTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Daihatsu Transponder Page */}
+      {currentPage === 'daihatsu' && (
+        <DaihatsuTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Dodge Transponder Page */}
+      {currentPage === 'dodge' && (
+        <DodgeTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Fiat Transponder Page */}
+      {currentPage === 'fiat' && (
+        <FiatTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Ford Transponder Page */}
+      {currentPage === 'ford' && (
+        <FordTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* GMC Transponder Page */}
+      {currentPage === 'gmc' && (
+        <GMCTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Honda Transponder Page */}
+      {currentPage === 'honda' && (
+        <HondaTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Hummer Transponder Page */}
+      {currentPage === 'hummer' && (
+        <HummerTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Hyundai Transponder Page */}
+      {currentPage === 'hyundai' && (
+        <HyundaiTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Iveco Transponder Page */}
+      {currentPage === 'iveco' && (
+        <IvecoTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Isuzu Transponder Page */}
+      {currentPage === 'isuzu' && (
+        <IsusuTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Jaguar Transponder Page */}
+      {currentPage === 'jaguar' && (
+        <JaguarTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Jeep Transponder Page */}
+      {currentPage === 'jeep' && (
+        <JeepTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Kawasaki Transponder Page */}
+      {currentPage === 'kawasaki' && (
+        <KawasakiTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Kia Transponder Page */}
+      {currentPage === 'kia' && (
+        <KiaTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Lancia Transponder Page */}
+      {currentPage === 'lancia' && (
+        <LanciaTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Land Rover Transponder Page */}
+      {currentPage === 'land-rover' && (
+        <LandRoverTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Lexus Transponder Page */}
+      {currentPage === 'lexus' && (
+        <LexusTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Lincoln Transponder Page */}
+      {currentPage === 'lincoln' && (
+        <LincolnTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Mazda Transponder Page */}
+      {currentPage === 'mazda' && (
+        <MazdaTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Mercedes Transponder Page */}
+      {currentPage === 'mercedes' && (
+        <MercedesTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Mitsubishi Transponder Page */}
+      {currentPage === 'mitsubishi' && (
+        <MitsubishiTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Nissan Transponder Page */}
+      {currentPage === 'nissan' && (
+        <NissanTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Opel Transponder Page */}
+      {currentPage === 'opel' && (
+        <OpelTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Peugeot Transponder Page */}
+      {currentPage === 'peugeot' && (
+        <PeugeotTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Porsche Transponder Page */}
+      {currentPage === 'porsche' && (
+        <PorscheTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Renault Transponder Page */}
+      {currentPage === 'renault' && (
+        <RenaultTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Rover Transponder Page */}
+      {currentPage === 'rover' && (
+        <RoverTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Seat Transponder Page */}
+      {currentPage === 'seat' && (
+        <SeatTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Skoda Transponder Page */}
+      {currentPage === 'skoda' && (
+        <SkodaTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Subaru Transponder Page */}
+      {currentPage === 'subaru' && (
+        <SubaruTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Suzuki Transponder Page */}
+      {currentPage === 'suzuki' && (
+        <SuzukiTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Toyota Transponder Page */}
+      {currentPage === 'toyota' && (
+        <ToyotaTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Volkswagen Transponder Page */}
+      {currentPage === 'volkswagen' && (
+        <VolkswagenTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Volvo Transponder Page */}
+      {currentPage === 'volvo' && (
+        <VolvoTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
+        />
+      )}
+
+      {/* Yamaha Transponder Page */}
+      {currentPage === 'yamaha' && (
+        <YamahaTransponderPage
+          onBack={() => navigateToPage('transponder-fitment')}
         />
       )}
 
       {/* Car Make Transponder Page (Placeholder for other makes) */}
       {currentPage === 'car-make-transponder' && selectedCarMake && (
         <CarMakeTransponderPage
-          onBack={() => setCurrentPage('transponder-fitment')}
+          onBack={() => navigateToPage('transponder-fitment')}
           make={selectedCarMake}
         />
       )}
