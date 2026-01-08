@@ -2099,8 +2099,6 @@ export default function App() {
         {currentSection === 'hub' && (
           <HubSection
             onBack={() => setCurrentSection('marketplace')}
-            user={user}
-            onAuthRequired={handleAuthRequired}
           />
         )}
 

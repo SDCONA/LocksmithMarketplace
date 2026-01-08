@@ -1,4 +1,4 @@
-import { ArrowLeft, Cpu, Package, FileText, MapPin } from "lucide-react";
+import { ArrowLeft, Cpu, Package, FileText, MapPin, Key } from "lucide-react";
 import { Button } from "./ui/button";
 
 interface HubPageProps {
@@ -6,11 +6,11 @@ interface HubPageProps {
   onNavigateToTransponderFitment: () => void;
   onNavigateToVAGPartNumbers: () => void;
   onNavigateToImmobiliserLocation: () => void;
-  isAuthenticated: boolean;
+  onNavigateToLishiFitment: () => void;
 }
 
-export function HubPage({ onBack, onNavigateToTransponderFitment, onNavigateToVAGPartNumbers, onNavigateToImmobiliserLocation, isAuthenticated }: HubPageProps) {
-  // Array of 30 buttons - first three are active
+export function HubPage({ onBack, onNavigateToTransponderFitment, onNavigateToVAGPartNumbers, onNavigateToImmobiliserLocation, onNavigateToLishiFitment }: HubPageProps) {
+  // Array of 30 buttons - first four are active
   const buttons = [
     {
       id: 1,
@@ -33,8 +33,15 @@ export function HubPage({ onBack, onNavigateToTransponderFitment, onNavigateToVA
       active: true,
       onClick: onNavigateToImmobiliserLocation
     },
-    ...Array.from({ length: 27 }, (_, i) => ({
-      id: i + 4,
+    {
+      id: 4,
+      name: "Lishi Fitment Catalog",
+      icon: Key,
+      active: true,
+      onClick: onNavigateToLishiFitment
+    },
+    ...Array.from({ length: 26 }, (_, i) => ({
+      id: i + 5,
       name: "",
       icon: null,
       active: false,
