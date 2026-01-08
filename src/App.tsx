@@ -513,9 +513,10 @@ export default function App() {
   // Sync URL with current section
   useEffect(() => {
     const path = `/${currentSection}`;
-    const currentHash = window.location.hash; // Preserve hash fragment for Hub sub-pages
+    // Only preserve hash when staying in Hub section, clear it for other sections
+    const currentHash = currentSection === 'hub' ? window.location.hash : '';
     if (window.location.pathname !== path) {
-      window.history.pushState({}, '', path + currentHash); // Add hash back to URL
+      window.history.pushState({}, '', path + currentHash);
     }
   }, [currentSection]);
   
@@ -543,8 +544,9 @@ export default function App() {
     // Only handle query parameters (path routing is handled in getInitialSection)
     if (sectionParam && validSections.includes(sectionParam)) {
       setCurrentSection(sectionParam as any);
-      // Clean URL (preserve hash for Hub sub-pages)
-      window.history.replaceState({}, '', `/${sectionParam}${window.location.hash}`);
+      // Clean URL (only preserve hash for Hub section)
+      const hash = sectionParam === 'hub' ? window.location.hash : '';
+      window.history.replaceState({}, '', `/${sectionParam}${hash}`);
     }
   }, []); // Only run on mount
   
