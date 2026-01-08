@@ -493,8 +493,9 @@ export default function App() {
   // Sync URL with current section
   useEffect(() => {
     const path = `/${currentSection}`;
+    const currentHash = window.location.hash; // Preserve hash fragment for Hub sub-pages
     if (window.location.pathname !== path) {
-      window.history.pushState({}, '', path);
+      window.history.pushState({}, '', path + currentHash); // Add hash back to URL
     }
   }, [currentSection]);
   
