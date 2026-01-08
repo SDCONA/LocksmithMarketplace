@@ -134,7 +134,6 @@ export function AccountPage({
         const profile = await DealsService.getMyRetailerProfile();
         setHasRetailerProfile(!!profile);
       } catch (error) {
-        console.error("Error checking retailer profile:", error);
         setHasRetailerProfile(false);
       } finally {
         setIsCheckingRetailer(false);
@@ -187,7 +186,6 @@ export function AccountPage({
         setNotifications(data.notifications);
       }
     } catch (error) {
-      console.error('Error loading notifications:', error);
       toast.error('Failed to load notifications');
     } finally {
       setLoadingNotifications(false);
@@ -218,7 +216,6 @@ export function AccountPage({
         toast.error(result.error || 'Failed to update profile');
       }
     } catch (error) {
-      console.error('Profile update error:', error);
       toast.error('Failed to update profile');
     }
   };
@@ -260,7 +257,6 @@ export function AccountPage({
         toast.error(result.error || 'Failed to update password');
       }
     } catch (error) {
-      console.error('Password change error:', error);
       toast.error('Failed to update password');
     }
   };
@@ -292,7 +288,6 @@ export function AccountPage({
         setShowDeleteConfirm(false);
       }
     } catch (error) {
-      console.error('Account deletion error:', error);
       toast.error('Failed to delete account');
       setShowDeleteConfirm(false);
     }

@@ -169,11 +169,9 @@ export function EditListingModal({
       }
       
       if (failedCount > 0) {
-        console.error('Some images failed to upload');
         toast.error(`${failedCount} image${failedCount > 1 ? 's' : ''} failed to upload`);
       }
     } catch (error) {
-      console.error('Error uploading images:', error);
       toast.error('Error uploading images');
     } finally {
       setIsUploading(false);

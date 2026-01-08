@@ -226,7 +226,6 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
         });
       }
     } catch (error) {
-      console.error("Login error:", error);
       
       // Check if it's a reCAPTCHA error
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -314,7 +313,6 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
         });
       }
     } catch (error) {
-      console.error("❌ Registration error:", error);
       
       // Check if it's a reCAPTCHA error
       const errorMessage = error instanceof Error ? error.message : String(error);
@@ -360,7 +358,6 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
         });
       }
     } catch (error) {
-      console.error("Password reset request error:", error);
       toast.error("Request failed", {
         description: "An unexpected error occurred"
       });
@@ -412,7 +409,6 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
         });
       }
     } catch (error) {
-      console.error("Password reset error:", error);
       toast.error("Reset failed", {
         description: "An unexpected error occurred"
       });
@@ -450,7 +446,6 @@ export function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
         });
       }
     } catch (error) {
-      console.error("Resend verification error:", error);
       toast.error("Request failed", {
         description: "An unexpected error occurred"
       });

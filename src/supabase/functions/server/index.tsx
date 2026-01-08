@@ -5,14 +5,7 @@
 // ⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️⚠️
 
 // 🔒 SECURITY CLEANUP COMPLETED 🔒
-// All 500+ console.log() statements have been systematically removed to prevent
-// sensitive information leakage in production. Only console.error() statements
-// remain for critical error logging. This includes removal of logs containing:
-// - User emails, IDs, and personal information
-// - Admin action details and authentication data
-// - Database query results and internal system states
-// - Debug information that could aid attackers
-// Console.error() statements are retained for debugging critical failures only.
+// All console statements have been systematically removed
 
 import { Hono } from "npm:hono";
 import { cors } from "npm:hono/cors";
@@ -146,7 +139,6 @@ async function getZipCodeCoordinates(zipCode: string): Promise<{ lat: number; ln
     zipCodeCache.set(zipCode, null);
     return null;
   } catch (error) {
-    console.error(`Error geocoding zip ${zipCode}:`, error);
     zipCodeCache.set(zipCode, null);
     return null;
   }
@@ -158,8 +150,7 @@ function extractZipCode(location: string): string | null {
   return zipMatch ? zipMatch[0] : null;
 }
 
-// Enable logger
-app.use('*', logger(console.log));
+// Request logger disabled
 
 // Enable CORS for all routes and methods
 app.use(
@@ -223,7 +214,6 @@ app.post("/make-server-a7e285ba/auth/signup", async (c) => {
     // Verify reCAPTCHA token
     const recaptchaResult = await verifyRecaptcha(recaptchaToken, 'signup', 0.5);
     if (!recaptchaResult.success) {
-      console.error(`reCAPTCHA verification failed for signup: ${recaptchaResult.error}`);
       return c.json({ 
         error: "Bot detection failed. Please try again.",
         details: recaptchaResult.error 
@@ -244,9 +234,6 @@ app.post("/make-server-a7e285ba/auth/signup", async (c) => {
     });
 
     if (authError) {
-      console.error(`[SIGNUP ERROR] Error status: ${authError.status}`);
-      console.error(`[SIGNUP ERROR] Error code: ${authError.code}`);
-      console.error(`[SIGNUP ERROR] Error message: ${authError.message}`);
       
       // Handle specific error cases
       if (authError.code === 'email_exists') {
@@ -284,7 +271,6 @@ app.post("/make-server-a7e285ba/auth/signup", async (c) => {
       .insert(profileData);
 
     if (profileError) {
-      console.error(`Profile creation error: ${profileError.message}`, profileError);
       // Don't fail the signup, profile can be created later
     }
 
@@ -306,7 +292,6 @@ app.post("/make-server-a7e285ba/auth/signup", async (c) => {
       });
 
     if (tokenError) {
-      console.error(`[Signup] Failed to store verification token: ${tokenError.message}`);
       // Continue anyway - user can request a new verification email
     }
 
@@ -324,7 +309,6 @@ app.post("/make-server-a7e285ba/auth/signup", async (c) => {
     });
 
     if (!emailResult.success) {
-      console.error(`[Signup] Failed to send verification email: ${emailResult.error}`);
       // Don't fail signup, user can request a new verification email
     }
 
@@ -352,7 +336,6 @@ app.post("/make-server-a7e285ba/auth/signup", async (c) => {
     });
 
   } catch (error) {
-    console.error(`Signup error: ${error}`);
     return c.json({ 
       error: "Failed to create account", 
       message: error instanceof Error ? error.message : String(error)
@@ -401,7 +384,6 @@ app.post("/make-server-a7e285ba/auth/verify-email", async (c) => {
     }
 
     if (!tokenData) {
-      console.error(`[Verify Email] Token/code not found or already used`);
       return c.json({ 
         error: "Invalid or expired verification code",
         code: 'invalid_token'
@@ -412,7 +394,6 @@ app.post("/make-server-a7e285ba/auth/verify-email", async (c) => {
     const now = new Date();
     const expiresAt = new Date(tokenData.expires_at);
     if (now > expiresAt) {
-      console.error(`[Verify Email] Token expired`);
       return c.json({ 
         error: "Verification code has expired. Please request a new one.",
         code: 'token_expired'
@@ -426,7 +407,6 @@ app.post("/make-server-a7e285ba/auth/verify-email", async (c) => {
     );
 
     if (updateError) {
-      console.error(`[Verify Email] Failed to confirm email: ${updateError.message}`);
       return c.json({ 
         error: "Failed to verify email. Please try again.",
         details: updateError.message
@@ -462,7 +442,7 @@ app.post("/make-server-a7e285ba/auth/verify-email", async (c) => {
         };
       }
     } catch (err) {
-      console.error(`[Verify Email] Failed to generate session: ${err}`);
+      // Failed to generate session
     }
 
     // Return success with session if available
@@ -506,7 +486,6 @@ app.post("/make-server-a7e285ba/auth/verify-email", async (c) => {
     }
 
   } catch (error) {
-    console.error(`[Verify Email] Error: ${error}`);
     return c.json({ 
       error: "Failed to verify email", 
       message: error instanceof Error ? error.message : String(error)
@@ -527,7 +506,6 @@ app.post("/make-server-a7e285ba/auth/signin", async (c) => {
     // Verify reCAPTCHA token
     const recaptchaResult = await verifyRecaptcha(recaptchaToken, 'login', 0.5);
     if (!recaptchaResult.success) {
-      console.error(`reCAPTCHA verification failed for login: ${recaptchaResult.error}`);
       return c.json({ 
         error: "Bot detection failed. Please try again.",
         details: recaptchaResult.error 
@@ -542,7 +520,6 @@ app.post("/make-server-a7e285ba/auth/signin", async (c) => {
     });
 
     if (error) {
-      console.error(`Sign in error for ${email}: ${error.message}`, error);
       
       // Provide user-friendly error message
       let userMessage = error.message;

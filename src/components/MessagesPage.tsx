@@ -184,7 +184,6 @@ export function MessagesPage({ onBack, onViewProfile, onViewListings, onViewList
           
           // Safety check for null user
           if (!otherUser) {
-            console.warn('No other user found for conversation:', conv.id);
             return null;
           }
           
@@ -216,14 +215,11 @@ export function MessagesPage({ onBack, onViewProfile, onViewListings, onViewList
           new Map(transformedConversations.map(conv => [conv.id, conv])).values()
         );
         
-        if (uniqueConversations.length !== transformedConversations.length) {
-          console.warn(`⚠️ Removed ${transformedConversations.length - uniqueConversations.length} duplicate conversations`);
-        }
         
         setConversations(uniqueConversations);
       }
     } catch (error) {
-      console.error('Error reloading conversations:', error);
+      // Error reloading conversations
     }
   }, []);
   
@@ -253,7 +249,6 @@ export function MessagesPage({ onBack, onViewProfile, onViewListings, onViewList
             
             // Safety check for null user
             if (!otherUser) {
-              console.warn('No other user found for conversation:', conv.id);
               return null;
             }
             
@@ -285,9 +280,6 @@ export function MessagesPage({ onBack, onViewProfile, onViewListings, onViewList
             new Map(transformedConversations.map(conv => [conv.id, conv])).values()
           );
           
-          if (uniqueConversations.length !== transformedConversations.length) {
-            console.warn(`⚠️ Removed ${transformedConversations.length - uniqueConversations.length} duplicate conversations`);
-          }
           
           setConversations(uniqueConversations);
         } else if (result.error) {

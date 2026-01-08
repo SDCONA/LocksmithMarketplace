@@ -39,7 +39,7 @@ export function VehicleSelector({ onVehicleSelect }: VehicleSelectorProps) {
             }
           }
         } else {
-          console.warn(`⚠️ Vehicle database returned ${response.status}: Using default data`);
+          // Vehicle database fallback
         }
         
         // If we get here, either request failed or no custom database, use default
@@ -47,7 +47,6 @@ export function VehicleSelector({ onVehicleSelect }: VehicleSelectorProps) {
         setVehicleData(data);
       } catch (error) {
         // Final fallback to embedded default
-        console.error("Error loading vehicle database:", error);
         setVehicleData(getDefaultVehicleData());
       } finally {
         setIsLoading(false);
@@ -78,7 +77,7 @@ export function VehicleSelector({ onVehicleSelect }: VehicleSelectorProps) {
           }
         }
       } catch (error) {
-        console.error("Error refreshing vehicle database:", error);
+        // Error refreshing vehicle database
       }
     };
 
