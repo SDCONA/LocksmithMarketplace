@@ -269,11 +269,13 @@ export default function App() {
   // This ensures direct links (like /hub) work correctly and root '/' always shows marketplace
   const getInitialSection = () => {
     const path = window.location.pathname.slice(1); // Remove leading slash
+    // Extract base section from sub-paths (e.g., "hub/test-path" → "hub")
+    const baseSection = path.split('/')[0];
     const validSections = ['retailers', 'search', 'marketplace', 'messages', 'account', 'listing', 'settings', 'profile', 'help', 'seller-listings', 'promote', 'contact', 'privacy', 'terms', 'deals', 'marketplace-profile', 'saved-items', 'saved-marketplace-listings', 'saved-deals', 'archived-listings', 'admin', 'retailer-dashboard', 'my-retailer-deals', 'hub'];
     
     // If URL has a valid section, use it
-    if (path && validSections.includes(path)) {
-      return path as any;
+    if (baseSection && validSections.includes(baseSection)) {
+      return baseSection as any;
     }
     
     // If URL is root ('/'), always use 'marketplace' as default
