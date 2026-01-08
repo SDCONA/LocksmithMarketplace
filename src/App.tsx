@@ -527,8 +527,8 @@ export default function App() {
     // Prioritize query parameter over path
     if (sectionParam && validSections.includes(sectionParam)) {
       setCurrentSection(sectionParam as any);
-      // Clean URL
-      window.history.replaceState({}, '', `/${sectionParam}`);
+      // Clean URL (preserve hash for Hub sub-pages)
+      window.history.replaceState({}, '', `/${sectionParam}${window.location.hash}`);
     } else if (path && validSections.includes(path)) {
       setCurrentSection(path as any);
     }
