@@ -2,13 +2,10 @@
   "buildCommand": "npm run build",
   "outputDirectory": "build",
   "installCommand": "npm install --force",
-  "routes": [
+  "rewrites": [
     {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/.*",
-      "dest": "/index.html"
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ],
   "headers": [
