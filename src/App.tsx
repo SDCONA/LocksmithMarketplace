@@ -2351,7 +2351,7 @@ export default function App() {
         )}
 
         {/* Main Content */}
-        {!['messages', 'account', 'listing', 'settings', 'profile', 'help', 'seller-listings', 'promote', 'contact', 'privacy', 'terms', 'marketplace-profile', 'saved-items', 'saved-marketplace-listings', 'saved-deals', 'archived-listings', 'admin', 'retailer-dashboard', 'my-retailer-deals'].includes(currentSection) && (
+        {!['messages', 'account', 'listing', 'settings', 'profile', 'help', 'seller-listings', 'promote', 'contact', 'privacy', 'terms', 'marketplace-profile', 'saved-items', 'saved-marketplace-listings', 'saved-deals', 'archived-listings', 'admin', 'retailer-dashboard', 'my-retailer-deals', 'hub', 'deals'].includes(currentSection) && (
           <div className="w-full pt-0 pb-8 flex-1">
             {/* Marketplace Section */}
             {currentSection === 'marketplace' && (

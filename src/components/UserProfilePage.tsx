@@ -10,7 +10,6 @@ import { MarketplaceCard } from "./MarketplaceCard";
 import { StarRating } from "./StarRating";
 import { UserReviewsSection } from "./UserReviewsSection";
 import { RateUserModal } from "./RateUserModal";
-import { PostCard } from "./PostCard";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "./ui/dialog";
 import { 
   ArrowLeft, 
@@ -64,7 +63,6 @@ export function UserProfilePage({
   // State for data
   const [profileData, setProfileData] = useState<any>(null);
   const [listings, setListings] = useState<any[]>([]);
-  const [posts, setPosts] = useState<any[]>([]);
   const [reviews, setReviews] = useState<any[]>([]);
   
   // State for UI
@@ -128,17 +126,6 @@ export function UserProfilePage({
           const listingsData = await listingsRes.json();
           if (listingsData.success) {
             setListings(listingsData.listings || []);
-          }
-        }
-
-        // Fetch user posts  
-        const postsUrl = `https://${projectId}.supabase.co/functions/v1/make-server-a7e285ba/users/${userId}/posts`;
-        const postsRes = await fetch(postsUrl, { headers });
-        
-        if (postsRes.ok) {
-          const postsData = await postsRes.json();
-          if (postsData.success) {
-            setPosts(postsData.posts || []);
           }
         }
 
