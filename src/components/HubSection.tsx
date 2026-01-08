@@ -32,7 +32,7 @@ import { HondaTransponderPage } from "./HondaTransponderPage";
 import { HummerTransponderPage } from "./HummerTransponderPage";
 import { HyundaiTransponderPage } from "./HyundaiTransponderPage";
 import { IvecoTransponderPage } from "./IvecoTransponderPage";
-import { IsisuTransponderPage } from "./IsisuTransponderPage";
+import { IsusuTransponderPage } from "./IsusuTransponderPage";
 import { JaguarTransponderPage } from "./JaguarTransponderPage";
 import { JeepTransponderPage } from "./JeepTransponderPage";
 import { KawasakiTransponderPage } from "./KawasakiTransponderPage";
@@ -465,7 +465,7 @@ export function HubSection({ onBack }: HubSectionProps) {
 
       {/* Isuzu Transponder Page */}
       {currentPage === 'isuzu' && (
-        <IsisuTransponderPage
+        <IsusuTransponderPage
           onBack={() => navigateToPage('transponder-fitment')}
         />
       )}
