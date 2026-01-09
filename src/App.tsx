@@ -265,27 +265,7 @@ export default function App() {
     StatePersistence.saveNavigationState(savedNavState);
   }
   
-  // IMPORTANT: Check URL first, then fall back to localStorage
-  // This ensures direct links (like /hub) work correctly and root '/' always shows marketplace
-  const getInitialSection = () => {
-    const path = window.location.pathname.slice(1); // Remove leading slash
-    const validSections = ['retailers', 'search', 'marketplace', 'messages', 'account', 'listing', 'settings', 'profile', 'help', 'seller-listings', 'promote', 'contact', 'privacy', 'terms', 'deals', 'marketplace-profile', 'saved-items', 'saved-marketplace-listings', 'saved-deals', 'archived-listings', 'admin', 'retailer-dashboard', 'my-retailer-deals', 'hub'];
-    
-    // If URL has a valid section, use it
-    if (path && validSections.includes(path)) {
-      return path as any;
-    }
-    
-    // If URL is root ('/'), always use 'marketplace' as default
-    if (!path || path === '') {
-      return 'marketplace';
-    }
-    
-    // Otherwise fall back to saved state
-    return savedNavState.currentSection as any;
-  };
-  
-  const [currentSection, setCurrentSection] = useState<'retailers' | 'search' | 'marketplace' | 'messages' | 'account' | 'listing' | 'settings' | 'profile' | 'help' | 'seller-listings' | 'promote' | 'contact' | 'privacy' | 'terms' | 'deals' | 'marketplace-profile' | 'saved-items' | 'saved-marketplace-listings' | 'saved-deals' | 'archived-listings' | 'admin' | 'retailer-dashboard' | 'my-retailer-deals' | 'hub'>(getInitialSection());
+  const [currentSection, setCurrentSection] = useState<'retailers' | 'search' | 'marketplace' | 'messages' | 'account' | 'listing' | 'settings' | 'profile' | 'help' | 'seller-listings' | 'promote' | 'contact' | 'privacy' | 'terms' | 'deals' | 'marketplace-profile' | 'saved-items' | 'saved-marketplace-listings' | 'saved-deals' | 'archived-listings' | 'admin' | 'retailer-dashboard' | 'my-retailer-deals' | 'hub'>(savedNavState.currentSection as any);
   const [selectedListing, setSelectedListing] = useState<any>(savedNavState.selectedListing);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(savedNavState.selectedUserId);
   const [selectedSellerId, setSelectedSellerId] = useState<string | null>(savedNavState.selectedSellerId);
@@ -513,10 +493,8 @@ export default function App() {
   // Sync URL with current section
   useEffect(() => {
     const path = `/${currentSection}`;
-    // Only preserve hash when staying in Hub section, clear it for other sections
-    const currentHash = currentSection === 'hub' ? window.location.hash : '';
     if (window.location.pathname !== path) {
-      window.history.pushState({}, '', path + currentHash);
+      window.history.pushState({}, '', path);
     }
   }, [currentSection]);
   
@@ -534,19 +512,24 @@ export default function App() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
   
-  // Handle query parameter routing (e.g., ?section=messages from email links)
+  // Handle initial page load from URL (e.g., email links to /messages)
   useEffect(() => {
+    // Check for query parameter (e.g., ?section=messages)
     const urlParams = new URLSearchParams(window.location.search);
     const sectionParam = urlParams.get('section');
     
+    // Check for path-based routing (e.g., /messages)
+    const path = window.location.pathname.slice(1);
+    
     const validSections = ['retailers', 'search', 'marketplace', 'messages', 'account', 'listing', 'settings', 'profile', 'help', 'seller-listings', 'promote', 'contact', 'privacy', 'terms', 'deals', 'marketplace-profile', 'saved-items', 'saved-marketplace-listings', 'saved-deals', 'archived-listings', 'admin', 'retailer-dashboard', 'my-retailer-deals', 'hub'];
     
-    // Only handle query parameters (path routing is handled in getInitialSection)
+    // Prioritize query parameter over path
     if (sectionParam && validSections.includes(sectionParam)) {
       setCurrentSection(sectionParam as any);
-      // Clean URL (only preserve hash for Hub section)
-      const hash = sectionParam === 'hub' ? window.location.hash : '';
-      window.history.replaceState({}, '', `/${sectionParam}${hash}`);
+      // Clean URL
+      window.history.replaceState({}, '', `/${sectionParam}`);
+    } else if (path && validSections.includes(path)) {
+      setCurrentSection(path as any);
     }
   }, []); // Only run on mount
   
