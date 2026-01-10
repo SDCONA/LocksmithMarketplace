@@ -134,7 +134,8 @@ export default function App() {
     // Attempt to load reCAPTCHA, but don't crash the app if it fails
     // Actual enforcement happens during login/signup
     loadRecaptchaScript().catch((error) => {
-      // reCAPTCHA load error - silent
+      console.error('[App] Failed to load reCAPTCHA on mount:', error.message);
+      console.warn('[App] reCAPTCHA must be configured for login/signup to work');
     });
   }, []);
 
@@ -186,6 +187,7 @@ export default function App() {
             window.history.replaceState({}, document.title, window.location.pathname);
           }
         } catch (error) {
+          console.error("Email verification error:", error);
           toast.error("Verification failed", {
             description: "An unexpected error occurred. Please try again."
           });
@@ -224,7 +226,7 @@ export default function App() {
                 }));
               }
             } catch (error) {
-              // Error loading saved listings
+              console.error('Error loading saved listings:', error);
             }
             
             // Load saved retailer products
@@ -240,13 +242,14 @@ export default function App() {
                 // No saved products
               }
             } catch (error) {
-              // Error loading saved products
+              console.error('Error loading saved products:', error);
             }
           }
         } else {
           // No active session
         }
       } catch (error) {
+        console.error("Error checking authentication:", error);
         setUser(null);
       }
       
@@ -355,7 +358,7 @@ export default function App() {
           setUnreadNotificationsCount(data.count || 0);
         }
       } catch (error) {
-        // Error checking unread notifications
+        console.error('Error checking unread notifications:', error);
       }
     };
 
@@ -502,7 +505,7 @@ export default function App() {
   useEffect(() => {
     const handlePopState = () => {
       const path = window.location.pathname.slice(1);
-      const validSections = ['retailers', 'search', 'marketplace', 'messages', 'account', 'listing', 'settings', 'profile', 'help', 'seller-listings', 'promote', 'contact', 'privacy', 'terms', 'deals', 'marketplace-profile', 'saved-items', 'saved-marketplace-listings', 'saved-deals', 'archived-listings', 'admin', 'retailer-dashboard', 'my-retailer-deals', 'hub'];
+      const validSections = ['retailers', 'search', 'marketplace', 'messages', 'account', 'listing', 'settings', 'profile', 'help', 'seller-listings', 'promote', 'contact', 'privacy', 'terms', 'deals', 'marketplace-profile', 'saved-items', 'saved-marketplace-listings', 'saved-deals', 'archived-listings', 'admin', 'retailer-dashboard', 'my-retailer-deals'];
       if (validSections.includes(path)) {
         setCurrentSection(path as any);
       }
@@ -521,7 +524,7 @@ export default function App() {
     // Check for path-based routing (e.g., /messages)
     const path = window.location.pathname.slice(1);
     
-    const validSections = ['retailers', 'search', 'marketplace', 'messages', 'account', 'listing', 'settings', 'profile', 'help', 'seller-listings', 'promote', 'contact', 'privacy', 'terms', 'deals', 'marketplace-profile', 'saved-items', 'saved-marketplace-listings', 'saved-deals', 'archived-listings', 'admin', 'retailer-dashboard', 'my-retailer-deals', 'hub'];
+    const validSections = ['retailers', 'search', 'marketplace', 'messages', 'account', 'listing', 'settings', 'profile', 'help', 'seller-listings', 'promote', 'contact', 'privacy', 'terms', 'deals', 'marketplace-profile', 'saved-items', 'saved-marketplace-listings', 'saved-deals', 'archived-listings', 'admin', 'retailer-dashboard', 'my-retailer-deals'];
     
     // Prioritize query parameter over path
     if (sectionParam && validSections.includes(sectionParam)) {
@@ -566,6 +569,7 @@ export default function App() {
             });
           }
         } catch (error) {
+          console.error('[Email Verification] Error:', error);
           toast.error("Verification failed", {
             description: "An error occurred. Please try again."
           });
@@ -668,7 +672,7 @@ export default function App() {
         setUnreadMessagesCount(result.count);
       }
     } catch (error) {
-      // Error fetching unread messages count
+      console.error('Error fetching unread messages count:', error);
     }
   };
   
@@ -920,6 +924,7 @@ export default function App() {
       });
       
     } catch (error) {
+      console.error('Error searching products:', error);
       
       // Fallback to mock results on error
       setSearchResults(mockSearchResults);
@@ -1019,12 +1024,14 @@ export default function App() {
         // Refresh listings
         fetchMarketplaceListings();
       } else {
+        console.error('Failed to create listing:', result.error);
         toast.error(result.error || 'Failed to create listing', {
           description: 'Please check all required fields and try again',
           duration: 2000,
         });
       }
     } catch (error) {
+      console.error('Error creating listing:', error);
       toast.error('Failed to create listing', {
         description: 'An unexpected error occurred',
         duration: 2000,
@@ -1063,6 +1070,7 @@ export default function App() {
         toast.error(result.error || 'Failed to update listing');
       }
     } catch (error) {
+      console.error('Error updating listing:', error);
       toast.error('Failed to update listing');
     }
   };
@@ -1089,6 +1097,7 @@ export default function App() {
         toast.error(result.error || 'Failed to delete listing');
       }
     } catch (error) {
+      console.error('Error deleting listing:', error);
       toast.error('Failed to delete listing');
     }
   };
@@ -1115,6 +1124,7 @@ export default function App() {
         toast.error(result.error || 'Failed to archive listing');
       }
     } catch (error) {
+      console.error('Error archiving listing:', error);
       toast.error('Failed to archive listing');
     }
   };
@@ -1199,6 +1209,7 @@ export default function App() {
           });
         }
       } catch (error) {
+        console.error('Error starting conversation:', error);
         toast.error('Failed to start conversation');
       }
     } else {
@@ -1281,10 +1292,10 @@ export default function App() {
           );
         }
       } else {
-        // Failed to fetch listing details
+        console.error('❌ Failed to fetch listing details:', response.status);
       }
     } catch (error) {
-      // Error fetching listing details
+      console.error('❌ Error fetching listing details:', error);
       // Keep showing the original listing data if fetch fails
     }
   };
@@ -1353,6 +1364,7 @@ export default function App() {
         toast.error(result.error || 'Failed to save item');
       }
     } catch (error) {
+      console.error('Error saving item:', error);
       toast.error('Failed to save item');
     }
   };
@@ -1377,6 +1389,7 @@ export default function App() {
         toast.error(result.error || 'Failed to remove saved item');
       }
     } catch (error) {
+      console.error('Error removing saved item:', error);
       toast.error('Failed to remove saved item');
     }
   };
@@ -1400,6 +1413,7 @@ export default function App() {
       setSavedItems([]);
       toast.success('All saved items cleared');
     } catch (error) {
+      console.error('Error clearing saved items:', error);
       toast.error('Failed to clear some saved items');
     }
   };
@@ -1450,6 +1464,7 @@ export default function App() {
         }
       }
     } catch (error) {
+      console.error('Error saving/unsaving deal:', error);
       toast.error('Failed to update saved status');
     }
   };
@@ -1509,6 +1524,7 @@ export default function App() {
         toast.error(result.error || 'Failed to save listing');
       }
     } catch (error) {
+      console.error('Error saving listing:', error);
       toast.error('Failed to save listing');
     }
   };
@@ -1535,6 +1551,7 @@ export default function App() {
         toast.error(result.error || 'Failed to remove saved listing');
       }
     } catch (error) {
+      console.error('Error removing saved listing:', error);
       toast.error('Failed to remove saved listing');
     }
   };
@@ -1558,6 +1575,7 @@ export default function App() {
       setSavedMarketplaceListings([]);
       toast.success('All saved marketplace listings cleared');
     } catch (error) {
+      console.error('Error clearing saved listings:', error);
       toast.error('Failed to clear some saved listings');
     }
   };
@@ -2017,12 +2035,12 @@ export default function App() {
 
       {/* Main content wrapper */}
       <div className="flex-1 flex flex-col">
-        {/* Vehicle Selector - HIDDEN: Not currently in use */}
-        {/* <div className="md:hidden">
+        {/* Vehicle Selector - Mobile only (desktop version is in header) */}
+        <div className="md:hidden">
           {(currentSection === 'retailers' || currentSection === 'search' || showSearchResults) && !['messages', 'account', 'listing', 'settings', 'profile', 'help', 'seller-listings', 'promote', 'contact', 'privacy', 'terms', 'saved-items', 'saved-marketplace-listings', 'saved-deals', 'archived-listings', 'admin', 'retailer-dashboard', 'my-retailer-deals'].includes(currentSection) && (
             <VehicleSelector onVehicleSelect={handleVehicleSelect} />
           )}
-        </div> */}
+        </div>
 
         {/* Messages Page */}
         {currentSection === 'messages' && (
@@ -2064,7 +2082,7 @@ export default function App() {
                   setUnreadNotificationsCount(data.count || 0);
                 }
               } catch (error) {
-                // Error refreshing notification count
+                console.error('Error refreshing notification count:', error);
               }
             }}
           />
@@ -2084,6 +2102,8 @@ export default function App() {
         {currentSection === 'hub' && (
           <HubSection
             onBack={() => setCurrentSection('marketplace')}
+            user={user}
+            onAuthRequired={handleAuthRequired}
           />
         )}
 
@@ -2331,7 +2351,7 @@ export default function App() {
         )}
 
         {/* Main Content */}
-        {!['messages', 'account', 'listing', 'settings', 'profile', 'help', 'seller-listings', 'promote', 'contact', 'privacy', 'terms', 'marketplace-profile', 'saved-items', 'saved-marketplace-listings', 'saved-deals', 'archived-listings', 'admin', 'retailer-dashboard', 'my-retailer-deals', 'hub', 'deals'].includes(currentSection) && (
+        {!['messages', 'account', 'listing', 'settings', 'profile', 'help', 'seller-listings', 'promote', 'contact', 'privacy', 'terms', 'marketplace-profile', 'saved-items', 'saved-marketplace-listings', 'saved-deals', 'archived-listings', 'admin', 'retailer-dashboard', 'my-retailer-deals'].includes(currentSection) && (
           <div className="w-full pt-0 pb-8 flex-1">
             {/* Marketplace Section */}
             {currentSection === 'marketplace' && (
