@@ -47,6 +47,10 @@ import { DealsPage } from "./components/DealsPage";
 import { RetailerDashboardPage } from "./components/RetailerDashboardPage";
 import { MyRetailerDealsPage } from "./components/MyRetailerDealsPage";
 import { HubSection } from "./components/HubSection";
+import { AboutUsPage } from "./components/AboutUsPage";
+import { FAQPage } from "./components/FAQPage";
+import { SEOHead, SEO_PAGES } from "./components/SEOHead";
+import { StructuredData, STRUCTURED_DATA } from "./components/StructuredData";
 import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
 import { Badge } from "./components/ui/badge";
@@ -268,7 +272,7 @@ export default function App() {
     StatePersistence.saveNavigationState(savedNavState);
   }
   
-  const [currentSection, setCurrentSection] = useState<'retailers' | 'search' | 'marketplace' | 'messages' | 'account' | 'listing' | 'settings' | 'profile' | 'help' | 'seller-listings' | 'promote' | 'contact' | 'privacy' | 'terms' | 'deals' | 'marketplace-profile' | 'saved-items' | 'saved-marketplace-listings' | 'saved-deals' | 'archived-listings' | 'admin' | 'retailer-dashboard' | 'my-retailer-deals' | 'hub'>(savedNavState.currentSection as any);
+  const [currentSection, setCurrentSection] = useState<'retailers' | 'search' | 'marketplace' | 'messages' | 'account' | 'listing' | 'settings' | 'profile' | 'help' | 'seller-listings' | 'promote' | 'contact' | 'privacy' | 'terms' | 'deals' | 'marketplace-profile' | 'saved-items' | 'saved-marketplace-listings' | 'saved-deals' | 'archived-listings' | 'admin' | 'retailer-dashboard' | 'my-retailer-deals' | 'hub' | 'about' | 'faq'>(savedNavState.currentSection as any);
   const [selectedListing, setSelectedListing] = useState<any>(savedNavState.selectedListing);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(savedNavState.selectedUserId);
   const [selectedSellerId, setSelectedSellerId] = useState<string | null>(savedNavState.selectedSellerId);
@@ -1662,6 +1666,23 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col pb-16">
+      {/* SEO Meta Tags - Dynamic based on current page */}
+      {currentSection === 'marketplace' && <SEOHead {...SEO_PAGES.marketplace} />}
+      {currentSection === 'deals' && <SEOHead {...SEO_PAGES.deals} />}
+      {currentSection === 'hub' && <SEOHead {...SEO_PAGES.hub} />}
+      {currentSection === 'retailers' && <SEOHead {...SEO_PAGES.retailers} />}
+      {currentSection === 'contact' && <SEOHead {...SEO_PAGES.contact} />}
+      {currentSection === 'privacy' && <SEOHead {...SEO_PAGES.privacy} />}
+      {currentSection === 'terms' && <SEOHead {...SEO_PAGES.terms} />}
+      {currentSection === 'about' && <SEOHead {...SEO_PAGES.about} />}
+      {currentSection === 'faq' && <SEOHead {...SEO_PAGES.faq} />}
+      {currentSection === 'help' && <SEOHead {...SEO_PAGES.help} />}
+      {(currentSection === 'search' || !currentSection) && <SEOHead {...SEO_PAGES.home} />}
+      
+      {/* Structured Data - Global */}
+      {STRUCTURED_DATA.organization}
+      {STRUCTURED_DATA.website}
+      
       {/* Deal Modal for database products */}
       {selectedDealForModal && (
         <DealModal
@@ -2318,6 +2339,20 @@ export default function App() {
         {/* Terms of Service Page */}
         {currentSection === 'terms' && (
           <TermsOfServicePage
+            onBack={() => setCurrentSection('marketplace')}
+          />
+        )}
+
+        {/* About Us Page */}
+        {currentSection === 'about' && (
+          <AboutUsPage
+            onBack={() => setCurrentSection('marketplace')}
+          />
+        )}
+
+        {/* FAQ Page */}
+        {currentSection === 'faq' && (
+          <FAQPage
             onBack={() => setCurrentSection('marketplace')}
           />
         )}

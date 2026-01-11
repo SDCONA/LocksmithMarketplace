@@ -1,7 +1,7 @@
 import { Mail, Phone, MapPin, Facebook, Twitter, Instagram, Linkedin } from "lucide-react";
 
 interface FooterProps {
-  onNavigate: (page: 'terms' | 'privacy' | 'contact' | 'retailers' | 'marketplace' | 'messages' | 'account' | 'listing' | 'settings' | 'profile' | 'help' | 'seller-listings' | 'promote') => void;
+  onNavigate: (page: 'terms' | 'privacy' | 'contact' | 'retailers' | 'marketplace' | 'messages' | 'account' | 'listing' | 'settings' | 'profile' | 'help' | 'seller-listings' | 'promote' | 'about' | 'faq') => void;
 }
 
 export function Footer({ onNavigate }: FooterProps) {
@@ -19,6 +19,24 @@ export function Footer({ onNavigate }: FooterProps) {
               © {currentYear} Locksmith Marketplace. All rights reserved.
             </p>
             <div className="flex flex-wrap gap-4 text-sm">
+              <button 
+                onClick={() => {
+                  console.log('Footer - About clicked');
+                  onNavigate('about');
+                }}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                About
+              </button>
+              <button 
+                onClick={() => {
+                  console.log('Footer - FAQ clicked');
+                  onNavigate('faq');
+                }}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                FAQ
+              </button>
               <button 
                 onClick={() => {
                   console.log('Footer - Terms clicked');
