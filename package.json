@@ -31,7 +31,7 @@
           "@radix-ui/react-toggle": "*",
           "@radix-ui/react-toggle-group": "*",
           "@radix-ui/react-tooltip": "*",
-          "@supabase/supabase-js": "^2",
+          "@supabase/supabase-js": "^2.39.0",
           "@vitejs/plugin-react": "*",
           "class-variance-authority": "*",
           "clsx": "*",

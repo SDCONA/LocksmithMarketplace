@@ -1,0 +1,27 @@
+# Locksmith Marketplace - Robots.txt
+# Allow search engines to crawl public pages
+
+User-agent: *
+Allow: /
+Allow: /marketplace
+Allow: /deals
+Allow: /hub
+Allow: /retailers
+Allow: /contact
+Allow: /privacy
+Allow: /terms
+Allow: /about
+Allow: /faq
+
+# Disallow private/user pages
+Disallow: /admin
+Disallow: /settings
+Disallow: /account
+Disallow: /messages
+Disallow: /my-listings
+Disallow: /saved-items
+Disallow: /promote
+Disallow: /archived
+
+# Sitemap location
+Sitemap: https://locksmith-marketplace.vercel.app/sitemap.xml

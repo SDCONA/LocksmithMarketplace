@@ -1,4 +1,4 @@
-import { ArrowLeft, Cpu, Package, FileText, MapPin, Key } from "lucide-react";
+import { ArrowLeft, Cpu, Package, FileText, MapPin, Key, Gamepad2 } from "lucide-react";
 import { Button } from "./ui/button";
 
 interface HubPageProps {
@@ -7,10 +7,11 @@ interface HubPageProps {
   onNavigateToVAGPartNumbers: () => void;
   onNavigateToImmobiliserLocation: () => void;
   onNavigateToLishiFitment: () => void;
+  onNavigateToTransponderMaster: () => void;
 }
 
-export function HubPage({ onBack, onNavigateToTransponderFitment, onNavigateToVAGPartNumbers, onNavigateToImmobiliserLocation, onNavigateToLishiFitment }: HubPageProps) {
-  // Array of 30 buttons - first four are active
+export function HubPage({ onBack, onNavigateToTransponderFitment, onNavigateToVAGPartNumbers, onNavigateToImmobiliserLocation, onNavigateToLishiFitment, onNavigateToTransponderMaster }: HubPageProps) {
+  // Array of 30 buttons - first 5 are active
   const buttons = [
     {
       id: 1,
@@ -40,8 +41,15 @@ export function HubPage({ onBack, onNavigateToTransponderFitment, onNavigateToVA
       active: true,
       onClick: onNavigateToLishiFitment
     },
-    ...Array.from({ length: 26 }, (_, i) => ({
-      id: i + 5,
+    {
+      id: 5,
+      name: "Transponder Master Game",
+      icon: Gamepad2,
+      active: true,
+      onClick: onNavigateToTransponderMaster
+    },
+    ...Array.from({ length: 25 }, (_, i) => ({
+      id: i + 6,
       name: "",
       icon: null,
       active: false,

@@ -1,0 +1,407 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  
+  <!-- Main Pages -->
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/</loc>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/marketplace</loc>
+    <changefreq>hourly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/deals</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/retailers</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  
+  <!-- Hub Tools - Transponder Fitment -->
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/acura</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/alfa-romeo</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/audi</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/bmw</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/buick</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/cadillac</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/chevrolet</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/chrysler</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/citroen</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/dacia</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/daewoo</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/daf</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/daihatsu</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/dodge</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/fiat</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/ford</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/gmc</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/honda</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/hummer</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/hyundai</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/isuzu</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/iveco</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/jaguar</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/jeep</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/kawasaki</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/kia</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/lancia</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/land-rover</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/lexus</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/lincoln</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/mazda</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/mercedes</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/mitsubishi</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/nissan</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/opel</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/peugeot</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/porsche</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/renault</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/rover</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/seat</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/skoda</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/subaru</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/suzuki</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/toyota</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/volkswagen</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/volvo</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/transponder-fitment/yamaha</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <!-- Hub Tools - VAG Part Numbers -->
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/vag-part-numbers</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/vag-part-numbers/audi</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/vag-part-numbers/seat</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/vag-part-numbers/skoda</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/vag-part-numbers/volkswagen</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <!-- Hub Tools - Lishi -->
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/lishi-fitment</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  
+  <!-- Hub Tools - Immobiliser -->
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/hub/immobiliser-location</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  
+  <!-- Legal Pages -->
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/contact</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/privacy</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/terms</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/about</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/faq</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  
+  <url>
+    <loc>https://locksmith-marketplace.vercel.app/help</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  
+</urlset>

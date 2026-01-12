@@ -13,6 +13,7 @@ import { logger } from "npm:hono/logger";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import dealsApp from "./deals-routes.tsx";
 import cronApp from "./cron-routes.tsx";
+import gameApp from "./transponder-game-routes.tsx";
 import { sendAdminWarning } from "./admin-warning-helper.tsx";
 import { verifyRecaptcha } from "./recaptcha-verify.tsx";
 import { sendEmail, emailVerificationTemplate, passwordResetTemplate, policyUpdateTemplate } from "./resend-mailer.tsx";
@@ -5400,6 +5401,11 @@ app.delete("/make-server-a7e285ba/admin/banner-positions/:positionId", async (c)
 // DEALS ROUTES
 // =====================================================
 app.route('/make-server-a7e285ba/deals', dealsApp);
+
+// =====================================================
+// TRANSPONDER MASTER GAME ROUTES
+// =====================================================
+app.route('/make-server-a7e285ba', gameApp);
 
 // =====================================================
 // CRON ROUTES (for scheduled jobs)
