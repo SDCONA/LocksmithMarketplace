@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "./ui/button";
 import { ArrowLeft, CheckCircle2, XCircle } from "lucide-react";
 import { projectId, publicAnonKey } from "../utils/supabase/info";
@@ -133,7 +134,7 @@ export function TransponderMasterGame({ onBack }: TransponderMasterGameProps) {
     const accuracy = questionsAnswered > 0 ? Math.round((correctAnswers / questionsAnswered) * 100) : 0;
     
     return (
-      <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 text-white p-4">
+      <div className="fixed inset-0 bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 text-white p-4 overflow-y-auto z-50">
         <div className="max-w-4xl mx-auto">
           {/* Header */}
           <div className="flex items-center justify-between mb-4">
@@ -203,7 +204,7 @@ export function TransponderMasterGame({ onBack }: TransponderMasterGameProps) {
   const accuracy = questionsAnswered > 0 ? Math.round((correctAnswers / questionsAnswered) * 100) : 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 text-white p-4">
+    <div className="fixed inset-0 bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 text-white p-4 overflow-y-auto z-50">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
