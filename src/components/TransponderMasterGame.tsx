@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "./ui/button";
-import { ArrowLeft, CheckCircle2, XCircle, Trophy, RotateCcw } from "lucide-react";
+import { ArrowLeft, CheckCircle2, XCircle, Trophy, RotateCcw, StopCircle } from "lucide-react";
 import { createClient } from "../utils/supabase/client";
 
 interface Question {
@@ -25,8 +25,6 @@ export function TransponderMasterGame({ onBack }: Props) {
   const [currentQuestionNum, setCurrentQuestionNum] = useState(1);
   const [score, setScore] = useState(0);
   const [usedQuestionIds, setUsedQuestionIds] = useState<string[]>([]);
-
-  const TOTAL_QUESTIONS = 10;
 
   const fetchQuestion = async () => {
     try {
@@ -117,15 +115,15 @@ export function TransponderMasterGame({ onBack }: Props) {
       setScore(score + 1);
     }
 
-    // Auto-advance after 2 seconds
+    // Auto-advance after 2 seconds (endless mode - no auto game over)
     setTimeout(() => {
-      if (currentQuestionNum >= TOTAL_QUESTIONS) {
-        setGameState("gameover");
-      } else {
-        setCurrentQuestionNum(currentQuestionNum + 1);
-        fetchQuestion();
-      }
+      setCurrentQuestionNum(currentQuestionNum + 1);
+      fetchQuestion();
     }, 2000);
+  };
+
+  const handleStopGame = () => {
+    setGameState("gameover");
   };
 
   const handleRestart = () => {
@@ -140,7 +138,8 @@ export function TransponderMasterGame({ onBack }: Props) {
 
   // Game Over Screen
   if (gameState === "gameover") {
-    const percentage = Math.round((score / TOTAL_QUESTIONS) * 100);
+    const totalAttempted = currentQuestionNum - 1;
+    const percentage = totalAttempted > 0 ? Math.round((score / totalAttempted) * 100) : 0;
     
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-black pb-20 md:pb-8">
@@ -173,16 +172,20 @@ export function TransponderMasterGame({ onBack }: Props) {
             </h2>
 
             <div className="text-6xl font-bold text-blue-600 dark:text-blue-400 mb-2">
-              {score}/{TOTAL_QUESTIONS}
+              {score}/{totalAttempted}
             </div>
 
-            <div className="text-2xl text-gray-600 dark:text-gray-400 mb-8">
+            <div className="text-2xl text-gray-600 dark:text-gray-400 mb-2">
               {percentage}% Correct
+            </div>
+
+            <div className="text-lg text-gray-500 dark:text-gray-500 mb-8">
+              {totalAttempted} {totalAttempted === 1 ? 'question' : 'questions'} attempted
             </div>
 
             {/* Performance Message */}
             <div className="mb-8">
-              {percentage === 100 && (
+              {percentage === 100 && totalAttempted > 0 && (
                 <p className="text-xl text-green-600 dark:text-green-400 font-semibold">
                   🎉 Perfect Score! You're a Transponder Master!
                 </p>
@@ -202,7 +205,7 @@ export function TransponderMasterGame({ onBack }: Props) {
                   📚 Not bad! Study up and try again!
                 </p>
               )}
-              {percentage < 40 && (
+              {percentage < 40 && totalAttempted > 0 && (
                 <p className="text-xl text-orange-600 dark:text-orange-400 font-semibold">
                   💪 Keep learning! Practice makes perfect!
                 </p>
@@ -260,21 +263,44 @@ export function TransponderMasterGame({ onBack }: Props) {
 
       {/* Question Area */}
       <div className="max-w-3xl mx-auto px-4 py-8">
-        {/* Progress */}
-        <div className="mb-6">
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Question {currentQuestionNum} of {TOTAL_QUESTIONS}
-            </span>
-            <span className="text-sm font-medium text-blue-600 dark:text-blue-400">
-              {Math.round((currentQuestionNum / TOTAL_QUESTIONS) * 100)}%
-            </span>
-          </div>
-          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-            <div
-              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${(currentQuestionNum / TOTAL_QUESTIONS) * 100}%` }}
-            />
+        {/* Stats Bar with Stop Button */}
+        <div className="mb-6 bg-white dark:bg-gray-800 rounded-xl shadow-md p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex gap-6">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
+                  {currentQuestionNum}
+                </div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">
+                  Questions
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600 dark:text-green-400">
+                  {score}
+                </div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">
+                  Correct
+                </div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-gray-600 dark:text-gray-300">
+                  {currentQuestionNum > 1 ? Math.round((score / (currentQuestionNum - 1)) * 100) : 0}%
+                </div>
+                <div className="text-xs text-gray-500 dark:text-gray-400 uppercase">
+                  Accuracy
+                </div>
+              </div>
+            </div>
+            <Button
+              onClick={handleStopGame}
+              variant="destructive"
+              size="lg"
+              className="bg-red-500 hover:bg-red-600"
+            >
+              <StopCircle className="w-5 h-5 mr-2" />
+              Stop Game
+            </Button>
           </div>
         </div>
 
