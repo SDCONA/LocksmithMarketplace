@@ -260,6 +260,8 @@ app.post("/make-server-a7e285ba/auth/signup", async (c) => {
       email: email, // Add email field - REQUIRED
       first_name: firstName || '',
       last_name: lastName || '',
+      username: email.split('@')[0], // Create username from email
+      display_name: `${firstName} ${lastName}`.trim() || email.split('@')[0], // Full name or email prefix
       phone: phone || '',
       location: city || location || '', // Use city or location as location field
       avatar_url: `https://api.dicebear.com/7.x/initials/svg?seed=${firstName} ${lastName}`,
@@ -625,14 +627,20 @@ app.get("/make-server-a7e285ba/auth/me", async (c) => {
 
     // If profile doesn't exist, create it
     if (!profile) {
+      const firstName = user.user_metadata?.first_name || '';
+      const lastName = user.user_metadata?.last_name || '';
+      const emailPrefix = user.email?.split('@')[0] || 'User';
+      
       const { data: newProfile, error: createError } = await supabaseAdmin
         .from('user_profiles')
         .insert({
           id: user.id,
           email: user.email || '',
-          first_name: user.user_metadata?.first_name || '',
-          last_name: user.user_metadata?.last_name || '',
-          avatar_url: `https://api.dicebear.com/7.x/initials/svg?seed=${user.user_metadata?.first_name || 'U'} ${user.user_metadata?.last_name || 'U'}`,
+          first_name: firstName,
+          last_name: lastName,
+          username: emailPrefix,
+          display_name: `${firstName} ${lastName}`.trim() || emailPrefix,
+          avatar_url: `https://api.dicebear.com/7.x/initials/svg?seed=${firstName || 'U'} ${lastName || 'U'}`,
           joined_date: new Date().toISOString(),
         })
         .select()
@@ -1669,6 +1677,7 @@ app.post("/make-server-a7e285ba/listings", async (c) => {
         key_type: keyType || null,
         transponder_type: transponderType || null,
         status: 'active',
+        expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // Auto-archive after 7 days
       })
       .select()
       .single();

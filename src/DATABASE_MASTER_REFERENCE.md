@@ -264,6 +264,25 @@
 - `condition` (text, NOT NULL)
 - `location` (text, NOT NULL)
 - `images` (ARRAY, default: '{}')
+- `status` (text, default: 'active') - active, sold, archived
+- `views` (integer, default: 0)
+- `is_featured` (boolean, default: false)
+- `vehicle_year` (text, nullable)
+- `vehicle_make` (text, nullable)
+- `vehicle_model` (text, nullable)
+- `key_type` (text, nullable)
+- `transponder_type` (text, nullable)
+- `shipping_available` (boolean, nullable)
+- `shipping_cost` (numeric, nullable)
+- `created_at` (timestamp with time zone, default: now())
+- `updated_at` (timestamp with time zone, default: now())
+- `expires_at` (timestamp with time zone, nullable) - Auto-archive after 7 days
+- `archived_at` (timestamp with time zone, nullable)
+
+**Auto-Archive System:** ✅ ACTIVE (Jan 12, 2026)
+- New listings set `expires_at = created_at + 7 days`
+- Daily cron job archives expired listings at midnight UTC
+- See: `/MARKETPLACE_AUTO_ARCHIVE_README.md`
 
 **RLS Policies:**
 - SELECT: Listings are publicly readable → `true`
@@ -532,9 +551,14 @@
 
 ---
 
-## 📝 INCOMPLETE DATA WARNING
+## 📝 SYSTEM UPDATES
 
-The marketplace_listings table appears truncated. Additional columns may exist beyond `images`.
+### ✅ Marketplace Auto-Archive System - FIXED (Jan 12, 2026)
+- **Issue:** Listings were not auto-archiving after 7 days
+- **Fix:** Added `expires_at` to new listing creation + daily cron job
+- **Status:** Fully operational
+- **Documentation:** `/MARKETPLACE_AUTO_ARCHIVE_README.md`
+- **Setup SQL:** `/MARKETPLACE_AUTO_ARCHIVE_SETUP.sql`
 
 ---
 
@@ -544,7 +568,8 @@ The marketplace_listings table appears truncated. Additional columns may exist b
 
 ---
 
-**Last Updated:** January 4, 2026  
+**Last Updated:** January 12, 2026  
 **Total Tables:** 39  
 **RLS Status:** All Enabled  
-**Admin System:** BROKEN - Needs Unification
+**Admin System:** BROKEN - Needs Unification  
+**Marketplace Auto-Archive:** ✅ FIXED (Jan 12, 2026)
