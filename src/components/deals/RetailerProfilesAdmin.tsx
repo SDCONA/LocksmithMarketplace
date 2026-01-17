@@ -60,6 +60,11 @@ export function RetailerProfilesAdmin() {
   });
   
   const [transferEmail, setTransferEmail] = useState("");
+  
+  // Logo upload state
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   useEffect(() => {
     loadProfiles();
@@ -241,6 +246,8 @@ export function RetailerProfilesAdmin() {
       is_always_on_top: profile.is_always_on_top,
       is_active: profile.is_active,
     });
+    setLogoPreview(profile.logo_url);
+    setLogoFile(null);
     setShowEditDialog(true);
   };
 
@@ -270,6 +277,73 @@ export function RetailerProfilesAdmin() {
       is_active: true,
     });
     setSelectedProfile(null);
+    setLogoFile(null);
+    setLogoPreview(null);
+  };
+
+  // Logo upload handlers
+  const handleLogoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        toast.error('Please select an image file');
+        return;
+      }
+      
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Image must be less than 5MB');
+        return;
+      }
+
+      setLogoFile(file);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLogoPreview(reader.result as string);
+        // Clear the logo_url when file is selected
+        setFormData({ ...formData, logo_url: '' });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleUploadLogo = async () => {
+    if (!logoFile || !selectedProfile) {
+      // For create dialog, upload without profile ID
+      if (!logoFile) return;
+      
+      setUploadingLogo(true);
+      try {
+        const uploadedUrl = await DealsService.uploadRetailerLogo(selectedProfile?.id || 'temp', logoFile);
+        setFormData({ ...formData, logo_url: uploadedUrl });
+        setLogoPreview(uploadedUrl);
+        toast.success('Logo uploaded successfully!');
+        setLogoFile(null);
+      } catch (error) {
+        console.error('Error uploading logo:', error);
+        toast.error('Failed to upload logo');
+      } finally {
+        setUploadingLogo(false);
+      }
+      return;
+    }
+
+    setUploadingLogo(true);
+    try {
+      const uploadedUrl = await DealsService.uploadRetailerLogo(selectedProfile.id, logoFile);
+      setFormData({ ...formData, logo_url: uploadedUrl });
+      setLogoPreview(uploadedUrl);
+      toast.success('Logo uploaded successfully!');
+      setLogoFile(null);
+    } catch (error) {
+      console.error('Error uploading logo:', error);
+      toast.error('Failed to upload logo');
+    } finally {
+      setUploadingLogo(false);
+    }
   };
 
   const filteredProfiles = profiles.filter(profile =>
@@ -534,15 +608,72 @@ export function RetailerProfilesAdmin() {
               </p>
             </div>
 
-            {/* Logo URL */}
-            <div>
-              <Label htmlFor="logo_url">Logo URL</Label>
-              <Input
-                id="logo_url"
-                value={formData.logo_url}
-                onChange={(e) => setFormData({ ...formData, logo_url: e.target.value })}
-                placeholder="https://example.com/logo.png"
-              />
+            {/* Logo Section - Enhanced with Upload */}
+            <div className="border-t pt-4">
+              <Label className="text-base font-semibold mb-3 block">Logo</Label>
+              
+              {/* Option 1: Upload Image */}
+              <div className="space-y-2 mb-4">
+                <Label className="text-sm text-gray-600">Upload Image File</Label>
+                <div className="flex gap-2">
+                  <Input 
+                    type="file"
+                    accept="image/*"
+                    onChange={handleLogoFileChange}
+                    className="flex-1"
+                  />
+                  {logoFile && (
+                    <Button 
+                      onClick={handleUploadLogo} 
+                      disabled={uploadingLogo}
+                      size="sm"
+                      type="button"
+                    >
+                      {uploadingLogo ? 'Uploading...' : 'Upload'}
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500">Max 5MB. PNG, JPG, WEBP supported.</p>
+              </div>
+
+              {/* Divider */}
+              <div className="flex items-center gap-3 my-4">
+                <div className="flex-1 border-t"></div>
+                <span className="text-sm text-gray-500">OR</span>
+                <div className="flex-1 border-t"></div>
+              </div>
+
+              {/* Option 2: Enter URL */}
+              <div className="space-y-2">
+                <Label className="text-sm text-gray-600">Enter Logo URL</Label>
+                <Input
+                  id="logo_url"
+                  value={formData.logo_url}
+                  onChange={(e) => {
+                    setFormData({ ...formData, logo_url: e.target.value });
+                    setLogoPreview(e.target.value);
+                    setLogoFile(null);
+                  }}
+                  placeholder="https://example.com/logo.png"
+                  disabled={!!logoFile}
+                />
+              </div>
+
+              {/* Logo Preview */}
+              {(logoPreview || formData.logo_url) && (
+                <div className="mt-4 p-4 border rounded-lg bg-gray-50">
+                  <Label className="text-sm font-medium mb-2 block">Preview</Label>
+                  <img 
+                    src={logoPreview || formData.logo_url} 
+                    alt="Logo preview" 
+                    className="h-16 w-auto object-contain rounded"
+                    onError={() => {
+                      toast.error('Invalid image URL');
+                      setLogoPreview(null);
+                    }}
+                  />
+                </div>
+              )}
             </div>
 
             {/* Contact Information */}
