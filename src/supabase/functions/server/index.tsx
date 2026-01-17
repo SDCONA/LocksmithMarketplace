@@ -1324,42 +1324,43 @@ app.get("/make-server-a7e285ba/listings", async (c) => {
       `)
       .eq('status', 'active');
     
-    // For random mode or radius filtering, fetch more items
-    if (random === 'true' || (zipCode && radius)) {
-      // Fetch more items to have a good pool for randomization or radius filtering
-      query = query.order('created_at', { ascending: false });
-      // When radius filtering, fetch ALL listings (no limit) to ensure accurate results
-      if (zipCode && radius) {
-        query = query.range(0, 9999); // Fetch up to 10,000 items for radius filtering
-      } else {
-        query = query.range(0, 99); // Fetch 100 items to randomize
-      }
-    } else {
-      query = query.order('created_at', { ascending: false });
-      query = query.range(offset, offset + limit - 1);
-    }
-
+    // Apply filters FIRST (before any ordering or range) for better performance
     if (category) query = query.eq('category', category);
     if (condition) query = query.eq('condition', condition);
     if (minPrice) query = query.gte('price', parseFloat(minPrice));
     if (maxPrice) query = query.lte('price', parseFloat(maxPrice));
     if (search) query = query.ilike('title', `%${search}%`);
     if (userId) query = query.eq('seller_id', userId);
+    
+    // OPTIMIZED: Significantly reduced fetch limits for performance
+    if (random === 'true') {
+      // For radius filtering with random, fetch reasonable limit (300 max)
+      if (zipCode && radius) {
+        query = query.order('created_at', { ascending: false });
+        query = query.range(0, 299); // Limit to 300 for radius filtering performance
+      } else {
+        // For random without radius, fetch 3 pages worth for variety
+        query = query.order('created_at', { ascending: false });
+        query = query.range(0, Math.min(59, offset + limit * 3));
+      }
+    } else if (zipCode && radius) {
+      // For radius filtering without random, also limit to reasonable amount
+      query = query.order('created_at', { ascending: false });
+      query = query.range(0, 299); // Limit to 300 listings max for radius filtering
+    } else {
+      // Normal pagination - fetch only what's needed
+      query = query.order('created_at', { ascending: false });
+      query = query.range(offset, offset + limit - 1);
+    }
 
     const dbStart = Date.now();
     const { data: listings, error } = await query;
     const dbTime = Date.now() - dbStart;
+    console.log(`⚡ Database query took: ${dbTime}ms (fetched ${listings?.length || 0} rows)`);
 
     if (error) {
       console.error(`❌ [LISTINGS] Error fetching listings: ${error.message}`);
       return c.json({ error: error.message }, 400);
-    }
-    
-    // Log sample location data for debugging
-    if (listings && listings.length > 0) {
-
-      listings.slice(0, 5).forEach((listing, idx) => {
-      });
     }
 
     const processStart = Date.now();
@@ -1367,7 +1368,7 @@ app.get("/make-server-a7e285ba/listings", async (c) => {
     let finalListings = listings;
     let hasMore = listings && listings.length === limit;
     
-    // Apply radius filtering if zipCode and radius are provided
+    // OPTIMIZED: Radius filtering with 300 item hard limit
     if (zipCode && radius && listings) {
       const radiusNum = parseInt(radius);
       
@@ -1375,6 +1376,7 @@ app.get("/make-server-a7e285ba/listings", async (c) => {
       const searchCoords = await getZipCodeCoordinates(zipCode);
       
       if (searchCoords) {
+        console.log(`🌍 Radius filtering: ${listings.length} listings within ${radiusNum} miles of ${zipCode}`);
         
         // Extract all unique zip codes from listings first
         const uniqueZips = new Set<string>();
@@ -1397,6 +1399,7 @@ app.get("/make-server-a7e285ba/listings", async (c) => {
           const batch = zipArray.slice(i, i + batchSize);
           await Promise.all(batch.map(zip => getZipCodeCoordinates(zip)));
         }
+        console.log(`📍 Geocoded ${uniqueZips.size} unique zip codes in ${Date.now() - geocodeStart}ms`);
         
         // Now filter listings by distance
         const filteredByDistance = [];
@@ -1437,6 +1440,7 @@ app.get("/make-server-a7e285ba/listings", async (c) => {
           }
         }
         
+        console.log(`✅ Radius filtering complete: ${includedCount} included, ${excludedCount} excluded`);
         finalListings = filteredByDistance;
         
         // Store debug info to return in response
@@ -1447,14 +1451,15 @@ app.get("/make-server-a7e285ba/listings", async (c) => {
           totalListings: listings.length,
           includedCount,
           excludedCount,
-          uniqueZipsCount: uniqueZips.size
+          uniqueZipsCount: uniqueZips.size,
+          performanceNote: '⚡ Optimized: Limited to 300 listings max for performance'
         };
       }
     }
     
-    // If random mode, shuffle and paginate
+    // OPTIMIZED: For random mode, apply simple shuffle after filtering (on smaller dataset now)
     if (random === 'true' && finalListings) {
-      // Shuffle using Fisher-Yates algorithm
+      // Shuffle using Fisher-Yates algorithm (on smaller dataset now)
       const shuffled = [...finalListings];
       for (let i = shuffled.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
@@ -1479,6 +1484,7 @@ app.get("/make-server-a7e285ba/listings", async (c) => {
     const totalPages = hasMore ? page + 1 : page;
 
     const totalTime = Date.now() - startTime;
+    console.log(`⏱️ Total request time: ${totalTime}ms (db: ${dbTime}ms, processing: ${Date.now() - processStart}ms)`);
 
     const response: any = { 
       success: true, 

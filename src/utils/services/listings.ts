@@ -98,16 +98,15 @@ export class ListingsService {
       // Create cache key
       const cacheKey = `listings:${params.toString()}`;
       
-      // Disable cache for paginated requests to ensure fresh data on scroll
-      const shouldCache = !filters?.page || filters.page === 1;
+      // OPTIMIZED: Cache paginated requests too, but with shorter duration
+      const isFirstPage = !filters?.page || filters.page === 1;
+      const cacheDuration = isFirstPage ? 60 : 30; // 60s for first page, 30s for others
       
-      // Check cache first (only for repeated requests within 10s and page 1)
-      if (shouldCache) {
-        const cached = requestDeduplicator.get(cacheKey);
-        if (cached) {
-          console.log(`💾 Cache hit! Returned in ${(performance.now() - serviceStart).toFixed(0)}ms`);
-          return cached;
-        }
+      // Check cache first
+      const cached = requestDeduplicator.get(cacheKey);
+      if (cached) {
+        console.log(`💾 Cache hit! Returned in ${(performance.now() - serviceStart).toFixed(0)}ms`);
+        return cached;
       }
       console.log(`⏱️ Cache miss, making fresh request...`);
 
@@ -128,14 +127,13 @@ export class ListingsService {
         console.log(`📦 JSON parse took: ${(performance.now() - parseStart).toFixed(0)}ms`);
 
         if (!response.ok) {
-          console.error(`Failed to fetch listings: ${data.error || 'Unknown error'}`);
+          console.error(`Failed to fetch listings: ${data.error || 'Unknown error'} (Status: ${response.status})`);
           return { success: false, listings: [], error: data.error || 'Failed to fetch listings' };
         }
 
-        // Cache successful responses for 10 seconds (only page 1)
-        if (shouldCache) {
-          requestDeduplicator.set(cacheKey, data, 10);
-        }
+        // OPTIMIZED: Cache successful responses - 60s for first page, 30s for others
+        requestDeduplicator.set(cacheKey, data, cacheDuration);
+        console.log(`✅ Response cached for ${cacheDuration}s`);
 
         return data;
       };

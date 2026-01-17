@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, memo, useMemo } from "react";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
@@ -53,7 +53,8 @@ interface MarketplaceCardProps {
   isSelected?: boolean;
 }
 
-export function MarketplaceCard({ 
+// OPTIMIZED: Memoized component to prevent unnecessary re-renders
+const MarketplaceCardComponent = ({ 
   item, 
   onMessage, 
   onFavorite,
@@ -70,7 +71,7 @@ export function MarketplaceCard({
   footerAction,
   onSelectListing,
   isSelected = false
-}: MarketplaceCardProps) {
+}: MarketplaceCardProps) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   
   const handleMessage = () => {
@@ -105,24 +106,28 @@ export function MarketplaceCard({
     );
   };
 
-  const getConditionColor = (condition: string) => {
-    switch (condition) {
+  // OPTIMIZED: Memoize condition color calculation
+  const conditionColor = useMemo(() => {
+    switch (item.condition) {
       case "new": return "bg-green-100 text-green-800";
       case "refurbished": return "bg-blue-100 text-blue-800";
       default: return "bg-gray-100 text-gray-800";
     }
-  };
+  }, [item.condition]);
 
-  // Calculate days remaining until expiration
-  const getDaysRemaining = () => {
+  // OPTIMIZED: Memoize days remaining calculation
+  const daysRemaining = useMemo(() => {
     if (!item.expires_at) return null;
     const now = new Date();
     const expiresAt = new Date(item.expires_at);
     const daysLeft = Math.ceil((expiresAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
     return daysLeft;
-  };
-
-  const daysRemaining = getDaysRemaining();
+  }, [item.expires_at]);
+  
+  // OPTIMIZED: Memoize ownership check
+  const isOwnListing = useMemo(() => {
+    return currentUser && item.seller && currentUser.id === item.seller.id;
+  }, [currentUser?.id, item.seller?.id]);
 
   return (
     <div className={`bg-white dark:bg-gray-800 rounded-lg shadow-sm border dark:border-gray-700 hover:shadow-md transition-shadow duration-200 overflow-hidden cursor-pointer relative ${isSelected ? 'ring-2 ring-blue-500' : ''}`}>
@@ -153,6 +158,8 @@ export function MarketplaceCard({
           src={item.images[currentImageIndex]}
           alt={item.title}
           className="w-full h-full object-cover bg-white"
+          loading="lazy"
+          decoding="async"
         />
         
         {/* Image navigation for multiple images */}
@@ -198,7 +205,7 @@ export function MarketplaceCard({
         )}
         
         {/* Edit/Delete Menu - Only for own listings */}
-        {currentUser && item.seller && currentUser.id === item.seller.id && onEditListing && onDeleteListing && (
+        {isOwnListing && onEditListing && onDeleteListing && (
           <div className="absolute top-1 sm:top-2 right-8 sm:right-10 z-50">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -254,7 +261,7 @@ export function MarketplaceCard({
         <Button
           variant="ghost"
           size="icon"
-          className={`absolute top-1 sm:top-2 right-1 sm:right-2 bg-white/80 hover:bg-white h-6 w-6 sm:h-8 sm:w-8 ${currentUser?.id === item.seller?.id ? 'hidden' : ''}`}
+          className={`absolute top-1 sm:top-2 right-1 sm:right-2 bg-white/80 hover:bg-white h-6 w-6 sm:h-8 sm:w-8 ${isOwnListing ? 'hidden' : ''}`}
           onClick={(e) => {
             e.stopPropagation();
             handleFavorite();
@@ -276,13 +283,13 @@ export function MarketplaceCard({
           <span className="text-lg sm:text-xl font-semibold text-green-600">
             ${item.price.toFixed(2)}
           </span>
-          <Badge className={`${getConditionColor(item.condition)} text-xs`}>
+          <Badge className={`${conditionColor} text-xs`}>
             {item.condition}
           </Badge>
         </div>
 
         {/* Expiration countdown - only show for own listings */}
-        {currentUser && item.seller && currentUser.id === item.seller.id && daysRemaining !== null && (
+        {isOwnListing && daysRemaining !== null && (
           <div className={`text-xs flex items-center ${
             daysRemaining <= 1 ? 'text-red-600' : daysRemaining <= 3 ? 'text-orange-600' : 'text-gray-600'
           }`}>
@@ -307,4 +314,18 @@ export function MarketplaceCard({
       )}
     </div>
   );
-}
+};
+
+// OPTIMIZED: Export memoized version to prevent re-renders when parent updates
+export const MarketplaceCard = memo(MarketplaceCardComponent, (prevProps, nextProps) => {
+  // Custom comparison - only re-render if these specific props change
+  return (
+    prevProps.item.id === nextProps.item.id &&
+    prevProps.isSaved === nextProps.isSaved &&
+    prevProps.isSelected === nextProps.isSelected &&
+    prevProps.isLoggedIn === nextProps.isLoggedIn &&
+    prevProps.currentUser?.id === nextProps.currentUser?.id &&
+    prevProps.item.views === nextProps.item.views &&
+    prevProps.item.price === nextProps.item.price
+  );
+});

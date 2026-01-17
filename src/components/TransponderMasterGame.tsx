@@ -36,11 +36,26 @@ export function TransponderMasterGame({ onBack }: Props) {
 
       const supabase = createClient();
 
+      // Get total count to calculate random offset
+      const { count } = await supabase
+        .from("transponder_fitments")
+        .select("*", { count: "exact", head: true });
+
+      if (!count || count === 0) {
+        console.error("No questions available");
+        return;
+      }
+
+      // Calculate random offset, avoiding previously used questions
+      const maxOffset = Math.max(0, count - usedQuestionIds.length - 1);
+      const randomOffset = Math.floor(Math.random() * maxOffset);
+
       // Get a random question that hasn't been used yet
       let query = supabase
         .from("transponder_fitments")
         .select("*")
-        .limit(50);
+        .order("id", { ascending: true })
+        .range(randomOffset, randomOffset + 49);
 
       // Only filter out used questions if we have any
       if (usedQuestionIds.length > 0) {
@@ -54,17 +69,18 @@ export function TransponderMasterGame({ onBack }: Props) {
         return;
       }
 
-      // Pick random question
+      // Pick random question from the fetched batch
       const randomQuestion = questions[Math.floor(Math.random() * questions.length)];
       setQuestion(randomQuestion);
       setUsedQuestionIds([...usedQuestionIds, randomQuestion.id]);
 
-      // Get wrong answers
+      // Get wrong answers - fetch more and randomize better
       const { data: wrongAnswers } = await supabase
         .from("transponder_fitments")
         .select("transponder_type")
         .neq("transponder_type", randomQuestion.transponder_type)
-        .limit(100);
+        .order("id", { ascending: Math.random() > 0.5 })
+        .limit(200);
 
       // Create options (1 correct + 3 wrong)
       const wrongOptions = wrongAnswers

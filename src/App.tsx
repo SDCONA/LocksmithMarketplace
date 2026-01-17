@@ -783,25 +783,25 @@ export default function App() {
     }
   };
 
-  // Infinite scroll - load more when user scrolls near bottom
+  // OPTIMIZED: Infinite scroll with prefetching at 60% for smoother experience
   useEffect(() => {
     if (currentSection !== 'marketplace') return;
     
     const handleScroll = () => {
-      // Check if user has scrolled near bottom (80% of page height)
       const scrollHeight = document.documentElement.scrollHeight;
       const scrollTop = document.documentElement.scrollTop;
       const clientHeight = document.documentElement.clientHeight;
       
       const scrolledPercentage = (scrollTop + clientHeight) / scrollHeight;
       
-      // Load more when scrolled 80% down and not already loading
-      if (scrolledPercentage > 0.8 && hasMoreListings && !isLoadingMore && !isLoadingListings) {
+      // OPTIMIZED: Prefetch next page at 60% scroll (earlier than before for seamless experience)
+      if (scrolledPercentage > 0.6 && hasMoreListings && !isLoadingMore && !isLoadingListings) {
+        console.log(`🔄 Prefetching page ${currentPage + 1} at ${Math.round(scrolledPercentage * 100)}% scroll`);
         fetchMarketplaceListings(currentPage + 1, true);
       }
     };
     
-    // Add scroll listener with throttling
+    // OPTIMIZED: Throttle with requestAnimationFrame for better performance
     let ticking = false;
     const scrollListener = () => {
       if (!ticking) {
@@ -813,7 +813,7 @@ export default function App() {
       }
     };
     
-    window.addEventListener('scroll', scrollListener);
+    window.addEventListener('scroll', scrollListener, { passive: true }); // passive for better scroll performance
     return () => window.removeEventListener('scroll', scrollListener);
   }, [currentSection, currentPage, hasMoreListings, isLoadingMore, isLoadingListings]);
 
