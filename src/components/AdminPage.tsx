@@ -86,6 +86,9 @@ export function AdminPage({ onBack }: AdminPageProps) {
   const [showEditRetailerDialog, setShowEditRetailerDialog] = useState(false);
   const [showDeleteRetailerDialog, setShowDeleteRetailerDialog] = useState(false);
   const [showAddRetailerDialog, setShowAddRetailerDialog] = useState(false);
+  const [uploadingRetailerLogo, setUploadingRetailerLogo] = useState(false);
+  const [retailerLogoFile, setRetailerLogoFile] = useState<File | null>(null);
+  const [retailerLogoPreview, setRetailerLogoPreview] = useState<string | null>(null);
   
   // Banner management state
   const [banners, setBanners] = useState(mockBanners);
@@ -380,6 +383,64 @@ export function AdminPage({ onBack }: AdminPageProps) {
       toast.success(`Retailer ${retailer.status === "active" ? "deactivated" : "activated"}`);
     } else {
       toast.error(result.error || 'Failed to update retailer status');
+    }
+  };
+
+  // Retailer logo upload handler
+  const handleRetailerLogoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        toast.error('Please select an image file');
+        return;
+      }
+      
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast.error('Image must be less than 5MB');
+        return;
+      }
+
+      setRetailerLogoFile(file);
+      
+      // Create preview
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setRetailerLogoPreview(reader.result as string);
+        // Clear the logo_url when file is selected
+        setSelectedRetailer({ ...selectedRetailer, logo_url: '' });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleUploadRetailerLogo = async () => {
+    if (!retailerLogoFile || !selectedRetailer) return;
+
+    setUploadingRetailerLogo(true);
+    const accessToken = await AuthService.getFreshToken();
+    if (!accessToken) {
+      toast.error('Authentication required');
+      setUploadingRetailerLogo(false);
+      return;
+    }
+
+    try {
+      const result = await AdminService.uploadRetailerLogo(accessToken, retailerLogoFile);
+      if (result.success && result.logoUrl) {
+        setSelectedRetailer({ ...selectedRetailer, logo_url: result.logoUrl });
+        setRetailerLogoPreview(result.logoUrl);
+        toast.success('Logo uploaded successfully!');
+      } else {
+        toast.error(result.error || 'Failed to upload logo');
+      }
+    } catch (error) {
+      console.error('Error uploading logo:', error);
+      toast.error('Failed to upload logo');
+    } finally {
+      setUploadingRetailerLogo(false);
+      setRetailerLogoFile(null);
     }
   };
 
@@ -1186,7 +1247,9 @@ export function AdminPage({ onBack }: AdminPageProps) {
                     <CardDescription>Manage retailer integrations and product sources</CardDescription>
                   </div>
                   <Button onClick={() => {
-                    setSelectedRetailer({ name: "", website: "", location: "" });
+                    setSelectedRetailer({ name: "", website: "", location: "", logo_url: "" });
+                    setRetailerLogoFile(null);
+                    setRetailerLogoPreview(null);
                     setShowAddRetailerDialog(true);
                   }}>
                     <Plus className="h-4 w-4 mr-2" />
@@ -1243,6 +1306,8 @@ export function AdminPage({ onBack }: AdminPageProps) {
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem onClick={() => {
                                 setSelectedRetailer(retailer);
+                                setRetailerLogoFile(null);
+                                setRetailerLogoPreview(retailer.logo_url || null);
                                 setShowEditRetailerDialog(true);
                               }}>
                                 <Edit className="h-4 w-4 mr-2" />
@@ -2056,8 +2121,14 @@ export function AdminPage({ onBack }: AdminPageProps) {
       </AlertDialog>
 
       {/* Add Retailer Dialog */}
-      <Dialog open={showAddRetailerDialog} onOpenChange={setShowAddRetailerDialog}>
-        <DialogContent>
+      <Dialog open={showAddRetailerDialog} onOpenChange={(open) => {
+        setShowAddRetailerDialog(open);
+        if (!open) {
+          setRetailerLogoFile(null);
+          setRetailerLogoPreview(null);
+        }
+      }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Add Retailer</DialogTitle>
             <DialogDescription>Add a new retailer integration</DialogDescription>
@@ -2088,18 +2159,94 @@ export function AdminPage({ onBack }: AdminPageProps) {
                   onChange={(e) => setSelectedRetailer({...selectedRetailer, location: e.target.value})}
                 />
               </div>
+              
+              {/* Logo Section */}
+              <div className="border-t pt-4">
+                <Label className="text-base font-semibold mb-3 block">Logo</Label>
+                
+                {/* Option 1: Upload Image */}
+                <div className="space-y-2 mb-4">
+                  <Label className="text-sm text-gray-600">Upload Image File</Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      type="file"
+                      accept="image/*"
+                      onChange={handleRetailerLogoFileChange}
+                      className="flex-1"
+                    />
+                    {retailerLogoFile && (
+                      <Button 
+                        onClick={handleUploadRetailerLogo} 
+                        disabled={uploadingRetailerLogo}
+                        size="sm"
+                      >
+                        {uploadingRetailerLogo ? 'Uploading...' : 'Upload'}
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500">Max 5MB. PNG, JPG, WEBP supported.</p>
+                </div>
+
+                {/* Divider */}
+                <div className="flex items-center gap-3 my-4">
+                  <div className="flex-1 border-t"></div>
+                  <span className="text-sm text-gray-500">OR</span>
+                  <div className="flex-1 border-t"></div>
+                </div>
+
+                {/* Option 2: Enter URL */}
+                <div className="space-y-2">
+                  <Label className="text-sm text-gray-600">Enter Logo URL</Label>
+                  <Input 
+                    placeholder="https://example.com/logo.png"
+                    value={selectedRetailer.logo_url || ''}
+                    onChange={(e) => {
+                      setSelectedRetailer({...selectedRetailer, logo_url: e.target.value});
+                      setRetailerLogoPreview(e.target.value);
+                      setRetailerLogoFile(null);
+                    }}
+                    disabled={!!retailerLogoFile}
+                  />
+                </div>
+
+                {/* Logo Preview */}
+                {retailerLogoPreview && (
+                  <div className="mt-4 p-4 border rounded-lg bg-gray-50">
+                    <Label className="text-sm font-medium mb-2 block">Preview</Label>
+                    <img 
+                      src={retailerLogoPreview} 
+                      alt="Logo preview" 
+                      className="h-16 w-auto object-contain rounded"
+                      onError={() => {
+                        toast.error('Invalid image URL');
+                        setRetailerLogoPreview(null);
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddRetailerDialog(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => {
+              setShowAddRetailerDialog(false);
+              setRetailerLogoFile(null);
+              setRetailerLogoPreview(null);
+            }}>Cancel</Button>
             <Button onClick={handleAddRetailer}>Add Retailer</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Edit Retailer Dialog */}
-      <Dialog open={showEditRetailerDialog} onOpenChange={setShowEditRetailerDialog}>
-        <DialogContent>
+      <Dialog open={showEditRetailerDialog} onOpenChange={(open) => {
+        setShowEditRetailerDialog(open);
+        if (!open) {
+          setRetailerLogoFile(null);
+          setRetailerLogoPreview(null);
+        }
+      }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Retailer</DialogTitle>
             <DialogDescription>Update retailer information</DialogDescription>
@@ -2127,10 +2274,80 @@ export function AdminPage({ onBack }: AdminPageProps) {
                   onChange={(e) => setSelectedRetailer({...selectedRetailer, location: e.target.value})}
                 />
               </div>
+              
+              {/* Logo Section */}
+              <div className="border-t pt-4">
+                <Label className="text-base font-semibold mb-3 block">Logo</Label>
+                
+                {/* Option 1: Upload Image */}
+                <div className="space-y-2 mb-4">
+                  <Label className="text-sm text-gray-600">Upload Image File</Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      type="file"
+                      accept="image/*"
+                      onChange={handleRetailerLogoFileChange}
+                      className="flex-1"
+                    />
+                    {retailerLogoFile && (
+                      <Button 
+                        onClick={handleUploadRetailerLogo} 
+                        disabled={uploadingRetailerLogo}
+                        size="sm"
+                      >
+                        {uploadingRetailerLogo ? 'Uploading...' : 'Upload'}
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500">Max 5MB. PNG, JPG, WEBP supported.</p>
+                </div>
+
+                {/* Divider */}
+                <div className="flex items-center gap-3 my-4">
+                  <div className="flex-1 border-t"></div>
+                  <span className="text-sm text-gray-500">OR</span>
+                  <div className="flex-1 border-t"></div>
+                </div>
+
+                {/* Option 2: Enter URL */}
+                <div className="space-y-2">
+                  <Label className="text-sm text-gray-600">Enter Logo URL</Label>
+                  <Input 
+                    placeholder="https://example.com/logo.png"
+                    value={selectedRetailer.logo_url || ''}
+                    onChange={(e) => {
+                      setSelectedRetailer({...selectedRetailer, logo_url: e.target.value});
+                      setRetailerLogoPreview(e.target.value);
+                      setRetailerLogoFile(null);
+                    }}
+                    disabled={!!retailerLogoFile}
+                  />
+                </div>
+
+                {/* Logo Preview */}
+                {(retailerLogoPreview || selectedRetailer.logo_url) && (
+                  <div className="mt-4 p-4 border rounded-lg bg-gray-50">
+                    <Label className="text-sm font-medium mb-2 block">Preview</Label>
+                    <img 
+                      src={retailerLogoPreview || selectedRetailer.logo_url} 
+                      alt="Logo preview" 
+                      className="h-16 w-auto object-contain rounded"
+                      onError={() => {
+                        toast.error('Invalid image URL');
+                        setRetailerLogoPreview(null);
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowEditRetailerDialog(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => {
+              setShowEditRetailerDialog(false);
+              setRetailerLogoFile(null);
+              setRetailerLogoPreview(null);
+            }}>Cancel</Button>
             <Button onClick={handleUpdateRetailer}>Save Changes</Button>
           </DialogFooter>
         </DialogContent>

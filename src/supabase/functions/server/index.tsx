@@ -4189,6 +4189,108 @@ app.get('/make-server-a7e285ba/admin/retailers', async (c) => {
   }
 });
 
+// Upload retailer logo (admin only)
+app.post('/make-server-a7e285ba/admin/retailers/upload-logo', async (c) => {
+  try {
+    const { user, error } = await verifyAdmin(c.req.header('Authorization'));
+    if (error || !user) {
+      return c.json({ error: error || 'Unauthorized - Admin access required' }, 401);
+    }
+
+    const formData = await c.req.formData();
+    const file = formData.get('file');
+
+    if (!file || !(file instanceof File)) {
+      return c.json({ 
+        success: false,
+        error: 'No file provided' 
+      }, 400);
+    }
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      return c.json({ 
+        success: false,
+        error: 'File must be an image' 
+      }, 400);
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      return c.json({ 
+        success: false,
+        error: 'File size must be less than 5MB' 
+      }, 400);
+    }
+
+    const supabase = getSupabaseAdmin();
+
+    // Create bucket if it doesn't exist
+    const bucketName = 'make-a7e285ba-retailer-logos';
+    const { data: buckets } = await supabase.storage.listBuckets();
+    const bucketExists = buckets?.some(bucket => bucket.name === bucketName);
+    
+    if (!bucketExists) {
+      const { error: bucketError } = await supabase.storage.createBucket(bucketName, {
+        public: true,
+        fileSizeLimit: 5242880, // 5MB
+        allowedMimeTypes: ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif']
+      });
+      
+      if (bucketError) {
+        console.error('Error creating bucket:', bucketError);
+        return c.json({ 
+          success: false,
+          error: 'Failed to create storage bucket' 
+        }, 500);
+      }
+    }
+
+    // Generate unique filename
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${crypto.randomUUID()}.${fileExt}`;
+
+    // Convert File to ArrayBuffer
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = new Uint8Array(arrayBuffer);
+
+    // Upload to Supabase Storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from(bucketName)
+      .upload(fileName, buffer, {
+        contentType: file.type,
+        upsert: false
+      });
+
+    if (uploadError) {
+      console.error('Error uploading file:', uploadError);
+      return c.json({ 
+        success: false,
+        error: 'Failed to upload file' 
+      }, 500);
+    }
+
+    // Get public URL
+    const { data: publicUrlData } = supabase.storage
+      .from(bucketName)
+      .getPublicUrl(fileName);
+
+    console.log(`Retailer logo uploaded by admin ${user.email}: ${publicUrlData.publicUrl}`);
+
+    return c.json({
+      success: true,
+      logoUrl: publicUrlData.publicUrl
+    }, 200);
+
+  } catch (error) {
+    console.error('Error uploading retailer logo:', error);
+    return c.json({ 
+      success: false,
+      error: 'Failed to upload retailer logo' 
+    }, 500);
+  }
+});
+
 // Get banners (legacy endpoint - fetches from promotional_banners)
 app.get('/make-server-a7e285ba/admin/banners', async (c) => {
   try {
