@@ -29,7 +29,7 @@ The SQL file will:
 - ✅ Insert **2000+ vehicle entries** from **47 brands**
 - ✅ Set up indexes for fast queries
 - ✅ Enable RLS policies for security
-- ✅ Ready to use for the Transponder Master game!
+- ✅ Ready to use for the transponder lookup features!
 
 ## Verify It Worked
 

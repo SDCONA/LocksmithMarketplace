@@ -2,7 +2,7 @@
 
 ## Overview
 
-These scripts automatically extract transponder fitment data from all brand-specific React component files and generate a complete SQL file for the Transponder Master game database.
+These scripts automatically extract transponder fitment data from all brand-specific React component files and generate a complete SQL file for the transponder database.
 
 ## Why Use These Scripts?
 

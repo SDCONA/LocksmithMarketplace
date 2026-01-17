@@ -4,6 +4,14 @@ export default {
     './index.html',
     './src/**/*.{js,ts,jsx,tsx}',
   ],
+
+  safelist: [
+    'bg-gradient-to-br',
+    'from-indigo-900',
+    'via-purple-900',
+    'to-pink-900',
+  ],
+
   theme: {
     extend: {
       colors: {

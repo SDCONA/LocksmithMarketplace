@@ -3,7 +3,7 @@
 Transponder Fitment Data Extractor
 ===================================
 Extracts transponder data from all React component files and generates
-a complete SQL file for the Transponder Master game database.
+a complete SQL file for the transponder database.
 
 This script:
 1. Reads all *TransponderPage.tsx files in /components

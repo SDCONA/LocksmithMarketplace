@@ -2,7 +2,7 @@
 -- 🗄️ TRANSPONDER FITMENT DATABASE - CENTRALIZED DATA
 -- Created: January 11, 2026
 -- Version: 1.0.0
--- Purpose: Centralized transponder data for game and lookup features
+-- Purpose: Centralized transponder data for lookup features
 -- ═══════════════════════════════════════════════════════════════
 
 -- ────────────────────────────────────────────────────────────────

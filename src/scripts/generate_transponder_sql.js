@@ -3,10 +3,12 @@
  * Transponder Fitment Data Extractor (Node.js version)
  * =====================================================
  * Extracts transponder data from all React component files and generates
- * a complete SQL file for the Transponder Master game database.
+ * a complete SQL file for the transponder database.
  *
  * Usage:
  *     node scripts/generate_transponder_sql.js
+ *
+ * Requirements: Node.js 14+
  */
 
 const fs = require('fs');

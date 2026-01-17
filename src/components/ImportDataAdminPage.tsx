@@ -152,7 +152,6 @@ export function ImportDataAdminPage({ onBack }: ImportDataAdminPageProps) {
               <li>• Auto-calculates difficulty levels (1-5)</li>
               <li>• Auto-assigns regions (US/Europe/Asia)</li>
               <li>• Imports to <code className="bg-blue-100 px-2 py-0.5 rounded">transponder_fitments</code> table</li>
-              <li>• Ready for Transponder Master game!</li>
             </ul>
           </div>
 

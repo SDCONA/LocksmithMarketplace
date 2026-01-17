@@ -32,7 +32,7 @@ import { HondaTransponderPage } from "./HondaTransponderPage";
 import { HummerTransponderPage } from "./HummerTransponderPage";
 import { HyundaiTransponderPage } from "./HyundaiTransponderPage";
 import { IvecoTransponderPage } from "./IvecoTransponderPage";
-import { IsusuTransponderPage } from "./IsusuTransponderPage";
+import { IsisuTransponderPage } from "./IsisuTransponderPage";
 import { JaguarTransponderPage } from "./JaguarTransponderPage";
 import { JeepTransponderPage } from "./JeepTransponderPage";
 import { KawasakiTransponderPage } from "./KawasakiTransponderPage";
@@ -74,7 +74,7 @@ export function HubSection({ onBack }: HubSectionProps) {
     return 'hub';
   };
 
-  const [currentPage, setCurrentPage] = useState<'hub' | 'transponder-fitment' | 'immobiliser-location' | 'immobiliser-model' | 'immobiliser-viewer' | 'vag-part-numbers' | 'vag-audi-parts' | 'vag-seat-parts' | 'vag-skoda-parts' | 'vag-volkswagen-parts' | 'lishi-fitment' | 'transponder-master' | 'car-make-transponder' | 'audi' | 'acura' | 'alfa-romeo' | 'bmw' | 'buick' | 'cadillac' | 'chevrolet' | 'chrysler' | 'citroen' | 'dacia' | 'daf' | 'daewoo' | 'daihatsu' | 'dodge' | 'fiat' | 'ford' | 'gmc' | 'honda' | 'hummer' | 'hyundai' | 'iveco' | 'isuzu' | 'jaguar' | 'jeep' | 'kawasaki' | 'kia' | 'lancia' | 'land-rover' | 'lexus' | 'lincoln' | 'mazda' | 'mercedes' | 'mitsubishi' | 'nissan' | 'opel' | 'peugeot' | 'porsche' | 'renault' | 'rover' | 'seat' | 'skoda' | 'subaru' | 'suzuki' | 'toyota' | 'volkswagen' | 'volvo' | 'yamaha'>(getInitialPage);
+  const [currentPage, setCurrentPage] = useState<'hub' | 'transponder-fitment' | 'immobiliser-location' | 'immobiliser-model' | 'immobiliser-viewer' | 'vag-part-numbers' | 'vag-audi-parts' | 'vag-seat-parts' | 'vag-skoda-parts' | 'vag-volkswagen-parts' | 'lishi-fitment' | 'car-make-transponder' | 'audi' | 'acura' | 'alfa-romeo' | 'bmw' | 'buick' | 'cadillac' | 'chevrolet' | 'chrysler' | 'citroen' | 'dacia' | 'daf' | 'daewoo' | 'daihatsu' | 'dodge' | 'fiat' | 'ford' | 'gmc' | 'honda' | 'hummer' | 'hyundai' | 'iveco' | 'isuzu' | 'jaguar' | 'jeep' | 'kawasaki' | 'kia' | 'lancia' | 'land-rover' | 'lexus' | 'lincoln' | 'mazda' | 'mercedes' | 'mitsubishi' | 'nissan' | 'opel' | 'peugeot' | 'porsche' | 'renault' | 'rover' | 'seat' | 'skoda' | 'subaru' | 'suzuki' | 'toyota' | 'volkswagen' | 'volvo' | 'yamaha' | 'transponder-master-game'>(getInitialPage);
   const [selectedCarMake, setSelectedCarMake] = useState<string | null>(null);
   
   // Immobiliser Location state
@@ -119,8 +119,8 @@ export function HubSection({ onBack }: HubSectionProps) {
     navigateToPage('lishi-fitment');
   };
 
-  const handleNavigateToTransponderMaster = () => {
-    navigateToPage('transponder-master');
+  const handleNavigateToTransponderMasterGame = () => {
+    navigateToPage('transponder-master-game');
   };
 
   return (
@@ -133,7 +133,7 @@ export function HubSection({ onBack }: HubSectionProps) {
           onNavigateToVAGPartNumbers={handleNavigateToVAGPartNumbers}
           onNavigateToImmobiliserLocation={handleNavigateToImmobiliserLocation}
           onNavigateToLishiFitment={handleNavigateToLishiFitment}
-          onNavigateToTransponderMaster={handleNavigateToTransponderMaster}
+          onNavigateToTransponderMasterGame={handleNavigateToTransponderMasterGame}
         />
       )}
 
@@ -658,18 +658,18 @@ export function HubSection({ onBack }: HubSectionProps) {
         />
       )}
 
-      {/* Transponder Master Game */}
-      {currentPage === 'transponder-master' && (
-        <TransponderMasterGame
-          onBack={() => navigateToPage('hub')}
-        />
-      )}
-
       {/* Car Make Transponder Page (Placeholder for other makes) */}
       {currentPage === 'car-make-transponder' && selectedCarMake && (
         <CarMakeTransponderPage
           onBack={() => navigateToPage('transponder-fitment')}
           make={selectedCarMake}
+        />
+      )}
+
+      {/* Transponder Master Game */}
+      {currentPage === 'transponder-master-game' && (
+        <TransponderMasterGame
+          onBack={() => navigateToPage('hub')}
         />
       )}
     </>

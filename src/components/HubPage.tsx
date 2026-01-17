@@ -7,10 +7,10 @@ interface HubPageProps {
   onNavigateToVAGPartNumbers: () => void;
   onNavigateToImmobiliserLocation: () => void;
   onNavigateToLishiFitment: () => void;
-  onNavigateToTransponderMaster: () => void;
+  onNavigateToTransponderMasterGame: () => void;
 }
 
-export function HubPage({ onBack, onNavigateToTransponderFitment, onNavigateToVAGPartNumbers, onNavigateToImmobiliserLocation, onNavigateToLishiFitment, onNavigateToTransponderMaster }: HubPageProps) {
+export function HubPage({ onBack, onNavigateToTransponderFitment, onNavigateToVAGPartNumbers, onNavigateToImmobiliserLocation, onNavigateToLishiFitment, onNavigateToTransponderMasterGame }: HubPageProps) {
   // Array of 30 buttons - first 5 are active
   const buttons = [
     {
@@ -46,7 +46,7 @@ export function HubPage({ onBack, onNavigateToTransponderFitment, onNavigateToVA
       name: "Transponder Master Game",
       icon: Gamepad2,
       active: true,
-      onClick: onNavigateToTransponderMaster
+      onClick: onNavigateToTransponderMasterGame
     },
     ...Array.from({ length: 25 }, (_, i) => ({
       id: i + 6,
