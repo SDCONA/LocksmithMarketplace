@@ -317,9 +317,9 @@ export function RetailerProfilesAdmin() {
       
       setUploadingLogo(true);
       try {
-        const uploadedUrl = await DealsService.uploadRetailerLogo(selectedProfile?.id || 'temp', logoFile);
-        setFormData({ ...formData, logo_url: uploadedUrl });
-        setLogoPreview(uploadedUrl);
+        const updatedProfile = await DealsService.uploadRetailerLogo(selectedProfile?.id || 'temp', logoFile);
+        setFormData({ ...formData, logo_url: updatedProfile.logo_url });
+        setLogoPreview(updatedProfile.logo_url);
         toast.success('Logo uploaded successfully!');
         setLogoFile(null);
       } catch (error) {
@@ -333,9 +333,9 @@ export function RetailerProfilesAdmin() {
 
     setUploadingLogo(true);
     try {
-      const uploadedUrl = await DealsService.uploadRetailerLogo(selectedProfile.id, logoFile);
-      setFormData({ ...formData, logo_url: uploadedUrl });
-      setLogoPreview(uploadedUrl);
+      const updatedProfile = await DealsService.uploadRetailerLogo(selectedProfile.id, logoFile);
+      setFormData({ ...formData, logo_url: updatedProfile.logo_url });
+      setLogoPreview(updatedProfile.logo_url);
       toast.success('Logo uploaded successfully!');
       setLogoFile(null);
     } catch (error) {
